@@ -1,0 +1,11 @@
+# 保持 LF，避免 Windows 上混入 CRLF
+* text=auto eol=lf
+
+# Windows 批处理需要 CRLF
+*.bat text eol=crlf
+
+# 二进制
+*.jar binary
+*.zip binary
+*.png binary
+*.jpg binary

@@ -1,0 +1,6 @@
+name: HoldTheFort
+version: '${version}'
+main: io.github.cmdgz.holdthefort.HoldTheFortPlugin
+description: 战线模式 —— 两队围绕一条横贯战场的战线对抗
+authors: [Cmd-GZ]
+api-version: '26.3'

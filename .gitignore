@@ -1,0 +1,32 @@
+# ---- Gradle ----
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# ---- 开发期运行时（runServer 生成的服务端目录）----
+run/
+logs/
+*.log
+
+# ---- IDE ----
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+bin/
+out/
+
+# ---- 系统 ----
+.DS_Store
+Thumbs.db
+
+# ---- 临时产物 ----
+.tmpdist/
+.scratch/
+*.zip
+
+# ---- 本地构建缓存（沙箱环境专用）----
+.gradle-home/
+.tmp-build/
