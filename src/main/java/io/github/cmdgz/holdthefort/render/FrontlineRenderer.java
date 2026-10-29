@@ -167,6 +167,10 @@ public final class FrontlineRenderer {
         final Vec2 dir = sample.direction();
         final double half = sample.halfLength();
 
+        // 同一帧里同一列可能被采样多次（步长 < 1 时必然如此），
+        // 所以每列的表面高度只扫一次，粒子位置仍用**精确采样点**，避免量化成方块中心。
+        final Map<Long, int[]> surfaceCache = new HashMap<>();
+
         for (double t = -half; t <= half + 1e-9; t += step) {
             final double x = sample.center().x() + dir.x() * t;
             final double z = sample.center().z() + dir.z() * t;
@@ -175,12 +179,15 @@ public final class FrontlineRenderer {
             if (!world.isChunkLoaded(bx >> 4, bz >> 4)) {
                 continue;
             }
-            drawColumn(bx, bz, dust, audience);
+            final int[] surfaces = surfaceCache.computeIfAbsent(
+                    pack(bx, bz), key -> columnSurfaces(bx, bz));
+            emit(surfaces, x, z, dust, audience);
         }
     }
 
-    /** §4.1：该列所有「非空气且头顶是空气」的方块，全部点亮。 */
-    private void drawColumn(int bx, int bz, Particle.DustOptions dust, List<Player> audience) {
+    /** §4.1：该列所有「非空气且头顶是空气」的方块的高度。 */
+    private int[] columnSurfaces(int bx, int bz) {
+        final List<Integer> found = new ArrayList<>();
         final int top = world.getMaxHeight() - 1;
         final int bottom = world.getMinHeight();
         for (int y = top; y >= bottom; y--) {
@@ -191,12 +198,29 @@ public final class FrontlineRenderer {
             if (!world.getBlockAt(bx, y + 1, bz).getType().isAir()) {
                 continue;
             }
-            final Location spot = new Location(world, bx + 0.5, y + 1.1, bz + 0.5);
+            found.add(y);
+        }
+        final int[] result = new int[found.size()];
+        for (int i = 0; i < result.length; i++) {
+            result[i] = found.get(i);
+        }
+        return result;
+    }
+
+    /** 在**精确的采样位置**上撒粒子；高度仍取该列的地表高度。 */
+    private void emit(int[] surfaces, double x, double z, Particle.DustOptions dust,
+            List<Player> audience) {
+        for (int y : surfaces) {
+            final Location spot = new Location(world, x, y + 1.1, z);
             for (Player player : audience) {
                 player.spawnParticle(Particle.DUST, spot, PARTICLES_PER_POINT,
                         JITTER, 0.05, JITTER, 0, dust);
             }
         }
+    }
+
+    private static long pack(int bx, int bz) {
+        return ((long) bx << 32) ^ (bz & 0xFFFFFFFFL);
     }
 
     /** 点到线段最近点的水平距离。 */
