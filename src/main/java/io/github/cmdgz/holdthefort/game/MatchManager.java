@@ -220,9 +220,28 @@ public final class MatchManager {
     private void tickEnding() {
         if (--ending <= 0) {
             toLobby();
+            // 清空报名与队伍：否则排队人数依然达标，下一 tick 就会立刻重新开局（§7）
+            clearParticipants();
             phase = MatchPhase.WAITING;
             cleanupMatch();
         }
+    }
+
+    /**
+     * 对局结束后清空报名队列与队伍归属。
+     *
+     * <p>玩家需要重新 {@code /htf join} 才会进入下一局；不清的话「人数达标」条件
+     * 一直成立，倒计时会无缝重来一次。
+     */
+    private void clearParticipants() {
+        for (UUID id : new ArrayList<>(queue)) {
+            final Player player = Bukkit.getPlayer(id);
+            if (player != null) {
+                plugin.forget(player);
+            }
+        }
+        queue.clear();
+        lastZones.clear();
     }
 
     // ------------------------------------------------------------ 阶段转换
