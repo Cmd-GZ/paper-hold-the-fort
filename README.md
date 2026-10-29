@@ -6,6 +6,8 @@ Minecraft Java 版 **Paper** 服务端插件。两队（红 / 蓝）在一片战
 
 **玩家侧零安装** —— 全部逻辑跑在服务端，原版客户端直接进服就能玩。
 
+> **第一次用？看 [docs/快速上手.md](docs/快速上手.md)** —— 只用游戏内命令，5 分钟做出一张地图。
+>
 > 部署到 `games-server-plugins` 服时的硬性约束（战场世界、大厅坐标、命令空间）见
 > [docs/server-requirements.md](docs/server-requirements.md)。
 
