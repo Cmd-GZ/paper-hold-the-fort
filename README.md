@@ -6,6 +6,9 @@ Minecraft Java 版 **Paper** 服务端插件。两队（红 / 蓝）在一片战
 
 **玩家侧零安装** —— 全部逻辑跑在服务端，原版客户端直接进服就能玩。
 
+> 部署到 `games-server-plugins` 服时的硬性约束（战场世界、大厅坐标、命令空间）见
+> [docs/server-requirements.md](docs/server-requirements.md)。
+
 ---
 
 ## 状态
@@ -88,10 +91,18 @@ Minecraft Java 版 **Paper** 服务端插件。两队（红 / 蓝）在一片战
 
 ## 快速试玩
 
-1. `./gradlew runServer` 起服，然后进服
-2. 在控制台执行一次 `htf build river_crossing` 生成平整战场（约 7.5 万方块，4 秒）
-3. 进服后 `/join red`、`/join blue` 分队；人数达标后自动倒计时开局
-4. 单人测试可以直接 `/htf start` 强制开局
+> 部署到 `games-server-plugins` 服时的硬性约束（战场世界 `world_htf`、大厅坐标、命令空间）
+> 见 [docs/server-requirements.md](docs/server-requirements.md)。
+
+插件**不自带地图**，第一次启动只会生成 `config.yml`。在战场世界里照下面走一遍就能开玩：
+
+1. 起服（`./gradlew runServer`），OP 进入战场世界
+   （`games-server-plugins` 服用 `/gw tp world_htf`；其它服由自己的世界管理插件进入）
+2. `/htf setup` 拿「战线标尺」：左键点一下、右键点一下 = 一帧，至少 3 帧；
+   `/htf setup spawn red` / `/htf setup spawn blue` 记两边出生点；
+   `/htf setup done` 落盘并热加载
+3. 场地还没铺的话，`/htf build <地图名>` 会在该地图的世界里铺一层平整地面（自己搭场地则不需要）
+4. 玩家 `/htf join red`、`/htf join blue`；两队都有人报名后自动倒计时开局，
+   单人测试可 `/htf start`
 
 对局中站到战线对面就会推线：红方越线让战线朝蓝方基地走，反之亦然。
-
