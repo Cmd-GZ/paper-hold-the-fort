@@ -14,7 +14,7 @@ repositories {
 
 dependencies {
     // Paper 26.1+ 要求 JDK 25（1.20 ~ 1.21.11 为 JDK 21）
-    compileOnly("io.papermc.paper:paper-api:26.2.build.135-stable")
+    compileOnly("io.papermc.paper:paper-api:26.2.build.126-stable")
     // 地图与配置解析。运行期由 Paper 自带，等价于 paper-api 的传递依赖。
     compileOnly("org.yaml:snakeyaml:2.2")
     testImplementation("org.yaml:snakeyaml:2.2")

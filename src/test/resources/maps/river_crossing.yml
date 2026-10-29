@@ -1,5 +1,5 @@
 name: river_crossing
-world: htf_arena   # 必须改成你服务器上实际存在的战场世界名（本插件不会创建世界）
+world: world_htf   # 必须改成你服务器上实际存在的战场世界名（本插件不会创建世界）
 
 spawns:
   red:  { x: 0, y: 64, z: -100 }

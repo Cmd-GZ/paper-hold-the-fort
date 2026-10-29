@@ -24,6 +24,6 @@ match:
 
 lobby:
   world: world
-  x: 0.5
-  y: 65
-  z: 0.5
+  x: 1.66
+  y: 57.0
+  z: -3.08
