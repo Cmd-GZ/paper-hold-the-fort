@@ -95,6 +95,11 @@ public final class MatchManager {
      */
     private final Set<UUID> queue = new HashSet<>();
 
+    /** 开局临时打开 PvP 时记下的原值，结束时还原（§7）。 */
+    private World pvpWorld;
+    private boolean savedPvp;
+    private boolean hasSavedPvp;
+
     /** 每名玩家手里那枚「战线罗盘」的标记，用来识别与回收（§7.1）。 */
     private NamespacedKey compassKey;
 
@@ -402,6 +407,7 @@ public final class MatchManager {
             // 世界已经由服务器/世界管理插件建好，这里只做局部配置
             ArenaWorldConfig.apply(world, map);
         }
+        enableWorldPvp();
 
         // 只比较**配置里的世界名**。此前是拿解析出来的 World 对象比较，
         // 而大厅世界找不到时会退回「第一个加载的世界」，在多世界服上会误判成同一世界。
@@ -457,6 +463,34 @@ public final class MatchManager {
     }
 
     /** 给玩家一枚指向战线中心的罗盘（§7.1）。只在有空槽时才给，不覆盖手上的物品。 */
+    /**
+     * 开局临时开启战场世界的 PvP，结束时还原。
+     *
+     * <p>与 KnockbackBattle / HillKing 等现有小游戏保持一致：不依赖世界配置里
+     * 是否开了 PvP，游戏自己保证对局期间能互相伤害。
+     */
+    private void enableWorldPvp() {
+        if (world == null) {
+            return;
+        }
+        pvpWorld = world;
+        savedPvp = world.getPVP();
+        hasSavedPvp = true;
+        world.setPVP(true);
+        plugin.getLogger().info("场地世界 PvP 临时开启：" + world.getName() + "（原值 " + savedPvp + "）");
+    }
+
+    /** 把 PvP 还原成开局前的值。 */
+    private void restoreWorldPvp() {
+        if (hasSavedPvp && pvpWorld != null) {
+            pvpWorld.setPVP(savedPvp);
+            plugin.getLogger().info("场地世界 PvP 已还原：" + pvpWorld.getName() + " -> " + savedPvp);
+        }
+        pvpWorld = null;
+        hasSavedPvp = false;
+    }
+
+    /** 给玩家一枚指向战线中心的罗盘（§7.1）。 */
     private void giveCompass(Player player) {
         if (findCompass(player) >= 0) {
             return;
@@ -541,6 +575,7 @@ public final class MatchManager {
     }
 
     private void cleanupMatch() {
+        restoreWorldPvp();
         map = null;
         chain = null;
         progress = null;
