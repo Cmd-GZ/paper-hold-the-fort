@@ -24,6 +24,7 @@ import io.github.cmdgz.holdthefort.game.ProgressState;
 import io.github.cmdgz.holdthefort.game.Team;
 import io.github.cmdgz.holdthefort.game.ZoneCounter;
 import io.github.cmdgz.holdthefort.map.MapDefinition;
+import io.github.cmdgz.holdthefort.world.ArenaBuilder;
 import io.github.cmdgz.holdthefort.render.FrontlineRenderer;
 
 /**
@@ -58,12 +59,32 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command,
             @NotNull String label, @NotNull String[] args) {
-        if (!(sender instanceof Player player)) {
-            sender.sendMessage("这条命令只能由玩家执行");
+        if (!(sender instanceof Player)) {
+            // 控制台只允许 build：地图自带世界，不需要玩家上下文
+            if (args.length >= 2 && args[0].equalsIgnoreCase("build")) {
+                return buildArena(sender, args[1]);
+            }
+            sender.sendMessage("控制台只支持 /htf build <地图名>，其余命令需要玩家执行");
             return true;
         }
+        final Player player = (Player) sender;
+        // /join red|blue（§7）：与 /htf red|blue 等价
+        if (command.getName().equalsIgnoreCase("join")) {
+            if (args.length == 0) {
+                player.sendMessage("用法：/join red | /join blue");
+                return true;
+            }
+            return switch (args[0].toLowerCase()) {
+                case "red" -> setTeam(player, Team.RED);
+                case "blue" -> setTeam(player, Team.BLUE);
+                default -> {
+                    player.sendMessage("队伍只有 red 与 blue");
+                    yield true;
+                }
+            };
+        }
         if (args.length == 0) {
-            player.sendMessage("用法：/htf red | /htf blue | /htf line <地图名> | /htf stop");
+            player.sendMessage("用法：/htf red | blue | line <地图> | stop | build <地图> | start");
             return true;
         }
         return switch (args[0].toLowerCase()) {
@@ -71,6 +92,8 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
             case "blue" -> setTeam(player, Team.BLUE);
             case "line" -> startLine(player, args.length > 1 ? args[1] : null);
             case "stop" -> stopLine(player);
+            case "build" -> buildArena(player, args.length > 1 ? args[1] : null);
+            case "start" -> startMatch(player);
             default -> {
                 player.sendMessage("未知子命令：" + args[0]);
                 yield true;
@@ -79,8 +102,41 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
     }
 
     private boolean setTeam(Player player, Team team) {
-        plugin.setTeam(player, team);
-        player.sendMessage("已加入" + (team == Team.RED ? "红方" : "蓝方"));
+        plugin.match().join(player, team);
+        return true;
+    }
+
+    /** 生成一张平整的测试战场。 */
+    private boolean buildArena(org.bukkit.command.CommandSender sender, String mapName) {
+        if (mapName == null) {
+            sender.sendMessage("请指定地图名，可用：" + plugin.maps().keySet());
+            return true;
+        }
+        final MapDefinition map = plugin.maps().get(mapName);
+        if (map == null) {
+            sender.sendMessage("找不到地图 " + mapName);
+            return true;
+        }
+        final World target = sender instanceof Player p
+                ? p.getWorld()
+                : plugin.getServer().getWorld(map.world());
+        if (target == null) {
+            sender.sendMessage("地图 " + mapName + " 的世界 " + map.world() + " 未加载");
+            return true;
+        }
+        sender.sendMessage("正在生成战场，稍等…");
+        final long start = System.currentTimeMillis();
+        final int placed = ArenaBuilder.build(target, map);
+        sender.sendMessage("战场生成完毕：放置 " + placed + " 个方块，用时 "
+                + (System.currentTimeMillis() - start) + " ms");
+        plugin.getLogger().info("战场 " + mapName + " 已生成于世界 " + target.getName());
+        return true;
+    }
+
+    /** 立刻开始一局（调试用，跳过等待人数）。 */
+    private boolean startMatch(Player player) {
+        plugin.match().forceStart();
+        player.sendMessage("已请求开局");
         return true;
     }
 
@@ -204,9 +260,11 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
     public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command,
             @NotNull String alias, @NotNull String[] args) {
         if (args.length == 1) {
-            return List.of("red", "blue", "line", "stop");
+            return command.getName().equalsIgnoreCase("join")
+                    ? List.of("red", "blue")
+                    : List.of("red", "blue", "line", "stop", "build", "start");
         }
-        if (args.length == 2 && args[0].equalsIgnoreCase("line")) {
+        if (args.length == 2 && (args[0].equalsIgnoreCase("line") || args[0].equalsIgnoreCase("build"))) {
             return new ArrayList<>(plugin.chains().keySet());
         }
         return List.of();

@@ -8,3 +8,6 @@ commands:
   htf:
     description: 战线模式调试命令
     usage: /htf line <地图名> | /htf stop
+  join:
+    description: 加入红方或蓝方
+    usage: /join red|blue

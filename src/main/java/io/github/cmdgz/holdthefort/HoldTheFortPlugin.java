@@ -11,13 +11,17 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Stream;
 
+import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import io.github.cmdgz.holdthefort.command.HoldTheFortCommand;
+import io.github.cmdgz.holdthefort.listener.MatchListener;
 import io.github.cmdgz.holdthefort.config.ConfigParser;
 import io.github.cmdgz.holdthefort.config.PluginConfig;
+import io.github.cmdgz.holdthefort.game.MatchManager;
 import io.github.cmdgz.holdthefort.game.Team;
 import io.github.cmdgz.holdthefort.frontline.FrontlineChain;
 import io.github.cmdgz.holdthefort.map.Defaults;
@@ -42,6 +46,7 @@ public final class HoldTheFortPlugin extends JavaPlugin {
     private final Map<String, FrontlineChain> chains = new LinkedHashMap<>();
     /** 临时的分队表；正式的对局分队属于 §7 的流程，尚未实现。 */
     private final Map<UUID, Team> teams = new HashMap<>();
+    private MatchManager matchManager;
 
     @Override
     public void onEnable() {
@@ -53,6 +58,10 @@ public final class HoldTheFortPlugin extends JavaPlugin {
         ensureSampleMap();
         loadMaps();
         registerCommands();
+
+        matchManager = new MatchManager(this);
+        matchManager.start();
+        getServer().getPluginManager().registerEvents(new MatchListener(this), this);
         getLogger().info("Hold the Fort v" + getPluginMeta().getVersion()
                 + " 已启用，成功加载 " + maps.size() + " 张地图");
     }
@@ -66,11 +75,35 @@ public final class HoldTheFortPlugin extends JavaPlugin {
         final HoldTheFortCommand executor = new HoldTheFortCommand(this);
         command.setExecutor(executor);
         command.setTabCompleter(executor);
+
+        final PluginCommand join = getCommand("join");
+        if (join != null) {
+            join.setExecutor(executor);
+            join.setTabCompleter(executor);
+        }
     }
 
     @Override
     public void onDisable() {
         getLogger().info("Hold the Fort 已停用");
+    }
+
+    public PluginConfig config() {
+        return config;
+    }
+
+    public MatchManager match() {
+        return matchManager;
+    }
+
+    /** 大厅传送点；配置的世界不存在时退回主世界出生点。 */
+    public Location lobbyLocation() {
+        final var world = Bukkit.getWorld(config.lobbyWorld());
+        if (world == null) {
+            final var first = getServer().getWorlds().getFirst();
+            return first.getSpawnLocation();
+        }
+        return new Location(world, config.lobby().x(), config.lobby().y(), config.lobby().z());
     }
 
     /** 已加载的地图名，供后续对局流程使用。 */
