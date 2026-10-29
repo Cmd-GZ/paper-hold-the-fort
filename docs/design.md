@@ -70,8 +70,8 @@ $$
 \mathbf d_n &= \operatorname{normalize}(\mathbf q_n-\mathbf p_n) && \text{两点连线的水平方向}\\
 \mathbf m_n &= \tfrac12\left(\mathbf p_n+\mathbf q_n\right) && \text{中点}\\
 h_n &= \tfrac12\left\lVert \mathbf q_n-\mathbf p_n\right\rVert && \text{战线半长（向两侧各延伸这么多）}\\
-\mathbf m_0 &= \mathbf{spawn}_{\text{red}} && \text{候选 A 的虚拟前一帧（仅 }\texttt{free}\text{ 模式用到）}\\
-\mathbf v_n &= \mathbf m_n-\mathbf m_{n-1} && \text{战线从上一帧走过来的方向}\\
+\mathbf m_{L-1} &= \mathbf{spawn}_{\text{red}} && \text{虚拟帧：只给 } \texttt{free} \text{ 模式算第 } L \text{ 帧的候选 A 用}\\
+\mathbf v_n &= \mathbf m_n-\mathbf m_{n-1} && \text{战线从上一帧走过来的方向（} n=L \text{ 时用虚拟帧）}\\
 \hat{\mathbf n}^{\,0}_n &= \operatorname{normalize}\!\left(\mathbf v_n-(\mathbf v_n\cdot\mathbf d_n)\,\mathbf d_n\right) && \text{候选 A：}v_n\text{ 垂直于 }d_n\text{ 的分量}\\
 \hat{\mathbf n}^{\,1}_n &= -\hat{\mathbf n}^{\,0}_n && \text{翻转后的朝向（候选 B）}\\
 \theta_n &= \operatorname{atan2}\!\left(-\hat n_x,\;\hat n_z\right) && \text{对应的 Minecraft yaw（角度制）}
@@ -88,6 +88,13 @@ $\theta=\operatorname{atan2}(-\hat n_x,\hat n_z)$（单位：**度**），
 - **位置**固定是中点 $\mathbf m_n$（没有选择余地，也不需要选择）；
 - **朝向**只有两个候选，互为反向 —— 也就是同一条线段、两种贴标签方式。
   最终用哪一个由 §6.2 决定：`90` 模式只需「互为反向」这个事实；`free` 模式才用到上面的候选 A。
+
+> **红方出生点有两处用途，不要混淆：**
+>
+> 1. **锚定起点帧**（§6.2 第一步）—— 决定第 $0$ 帧朝哪边。**两种模式都用到它**，
+>    这是「开局时红方在哪一侧」的唯一依据。
+> 2. **充当虚拟帧** $\mathbf m_{L-1}$ —— 只为了让第 $L$ 帧（最左一帧）也能算出候选 A，
+>    因为它没有左邻居。只有 `free` 模式需要候选 A，所以这个虚拟帧也只有 `free` 模式用到。
 
 **结论**：第 $n$ 号状态下的战线，就是**以 $\mathbf p_n$、$\mathbf q_n$ 为两端的线段**；
 实体站在中点，朝向垂直于这条线段。
