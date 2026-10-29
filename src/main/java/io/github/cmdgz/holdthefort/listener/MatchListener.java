@@ -30,8 +30,52 @@ public final class MatchListener implements Listener {
         this.plugin = plugin;
     }
 
+    /**
+     * 对局中**放行**不同队伍之间的伤害（§7）。
+     *
+     * <p>本服装了 SkyPit，它在 {@code LOWEST} 优先级上无条件取消全服玩家互伤
+     * （「主城等区域禁止玩家互伤」），并约定各小游戏在自己的场地里用 {@code HIGHEST}
+     * 把它掀掉 —— DuelArena、KnockbackBattle 都是这么做的。这里遵循同一约定。
+     *
+     * <p>只放行**不同队伍**：同队仍然由下面的友伤拦截负责。
+     */
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onPvpAllow(EntityDamageByEntityEvent event) {
+        if (plugin.match() == null || plugin.match().phase() != MatchPhase.RUNNING) {
+            return;
+        }
+        if (!(event.getEntity() instanceof Player victim)) {
+            return;
+        }
+        // 只在对局的战场世界里放行，避免有人留在大厅还能互砍
+        if (!plugin.match().isArenaWorld(victim.getWorld())) {
+            return;
+        }
+        final Player attacker = resolveAttacker(event);
+        if (attacker == null) {
+            return;
+        }
+        final Team a = plugin.teamOf(attacker);
+        final Team v = plugin.teamOf(victim);
+        if (a != null && v != null && a != v) {
+            event.setCancelled(false);
+        }
+    }
+
+    /** 直接攻击或投掷物的射手。 */
+    private static Player resolveAttacker(EntityDamageByEntityEvent event) {
+        if (event.getDamager() instanceof Player p) {
+            return p;
+        }
+        if (event.getDamager() instanceof org.bukkit.entity.Projectile proj
+                && proj.getShooter() instanceof Player shooter) {
+            return shooter;
+        }
+        return null;
+    }
+
     /** 友伤关闭（§7）。 */
-    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.LOWEST)
     public void onFriendlyFire(EntityDamageByEntityEvent event) {
         if (!(event.getEntity() instanceof Player victim)) {
             return;

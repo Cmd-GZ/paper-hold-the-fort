@@ -665,6 +665,11 @@ public final class MatchManager {
      * <p>只用于 {@link org.bukkit.event.player.PlayerRespawnEvent} 的单次重生位置，
      * **不会**改动玩家床铺或世界出生点。
      */
+    /** 给定世界是不是当前对局的战场世界。 */
+    public boolean isArenaWorld(org.bukkit.World other) {
+        return world != null && world.equals(other);
+    }
+
     public Location teamSpawn(Team team) {
         if (map == null || world == null) {
             return null;
