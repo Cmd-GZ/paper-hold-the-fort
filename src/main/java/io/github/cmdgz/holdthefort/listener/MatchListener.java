@@ -119,15 +119,31 @@ public final class MatchListener implements Listener {
         if (spawn != null && spawn.getWorld() != null) {
             event.setRespawnLocation(spawn);
         }
-        // 重生等待：先转观战，5 秒后再恢复（§7）
+        // 重生等待：先转观战；到点后**传送回本队出生点**再恢复生存（§7）
         final int seconds = plugin.config().respawnSeconds();
         player.setGameMode(GameMode.SPECTATOR);
+        player.sendActionBar(net.kyori.adventure.text.Component
+                .text("重生中… " + seconds + " 秒")
+                .color(net.kyori.adventure.text.format.NamedTextColor.GRAY));
+
         new BukkitRunnable() {
             @Override
             public void run() {
-                if (player.isOnline() && plugin.match().phase() == MatchPhase.RUNNING) {
-                    player.setGameMode(GameMode.SURVIVAL);
+                if (!player.isOnline()) {
+                    return;
                 }
+                if (plugin.match() == null || plugin.match().phase() != MatchPhase.RUNNING) {
+                    // 对局已经结束：只保证不是观战模式
+                    if (player.getGameMode() == GameMode.SPECTATOR) {
+                        player.setGameMode(GameMode.SURVIVAL);
+                    }
+                    return;
+                }
+                final Location back = plugin.match().teamSpawn(team);
+                if (back != null && back.getWorld() != null) {
+                    player.teleport(back);
+                }
+                player.setGameMode(GameMode.SURVIVAL);
             }
         }.runTaskLater(plugin, seconds * 20L);
     }
