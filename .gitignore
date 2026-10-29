@@ -30,3 +30,6 @@ Thumbs.db
 # ---- 本地构建缓存（沙箱环境专用）----
 .gradle-home/
 .tmp-build/
+
+# ---- 其它 ---
+ignores/
