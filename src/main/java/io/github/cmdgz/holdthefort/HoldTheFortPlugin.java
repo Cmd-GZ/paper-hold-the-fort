@@ -19,6 +19,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import io.github.cmdgz.holdthefort.command.HoldTheFortCommand;
 import io.github.cmdgz.holdthefort.command.SetupManager;
+import io.github.cmdgz.holdthefort.listener.DamageDebugListener;
 import io.github.cmdgz.holdthefort.listener.MatchListener;
 import io.github.cmdgz.holdthefort.config.ConfigParser;
 import io.github.cmdgz.holdthefort.config.PluginConfig;
@@ -67,6 +68,10 @@ public final class HoldTheFortPlugin extends JavaPlugin {
         setupManager = new SetupManager(this);
         getServer().getPluginManager().registerEvents(new MatchListener(this), this);
         getServer().getPluginManager().registerEvents(setupManager, this);
+        if (config.debugDamage()) {
+            getServer().getPluginManager().registerEvents(new DamageDebugListener(this), this);
+            getLogger().warning("已开启伤害调试日志（match.debug_damage: true）");
+        }
         if (maps.isEmpty()) {
             getLogger().info("还没有任何地图。OP 在战场世界里执行 /htf setup 即可现场做一张。");
         }

@@ -21,6 +21,8 @@ match:
   # 开局时是否按小游戏需要调整战场世界（时间/天气/刷怪/掉落等）。
   # 战场世界由服务器或世界管理插件负责创建，本插件不会创建或卸载任何世界。
   configure_world: true
+  # 排查用：把玩家之间的每次伤害尝试打到日志（含最终是否被取消）。平时保持 false
+  debug_damage: false
 
 lobby:
   world: world

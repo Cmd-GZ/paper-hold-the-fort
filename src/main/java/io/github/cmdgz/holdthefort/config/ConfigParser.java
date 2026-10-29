@@ -46,6 +46,8 @@ public final class ConfigParser {
                 match.get("allow_same_world"), "match.allow_same_world", base.allowSameWorld());
         final boolean configureWorld = asBoolean(
                 match.get("configure_world"), "match.configure_world", base.configureWorld());
+        final boolean debugDamage = asBoolean(
+                match.get("debug_damage"), "match.debug_damage", base.debugDamage());
 
         final Map<?, ?> lobby = asMap(map.get("lobby"), "lobby", Map.of());
         final String lobbyWorld = lobby.get("world") == null
@@ -65,7 +67,8 @@ public final class ConfigParser {
                 lobbyWorld,
                 lobbyPos,
                 allowSameWorld,
-                configureWorld);
+                configureWorld,
+                debugDamage);
     }
 
     private static Map<?, ?> asMap(Object raw, String where) {
