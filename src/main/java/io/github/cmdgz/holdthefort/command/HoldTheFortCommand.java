@@ -3,6 +3,7 @@ package io.github.cmdgz.holdthefort.command;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.GameMode;
 import org.bukkit.World;
@@ -60,11 +61,17 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command,
             @NotNull String label, @NotNull String[] args) {
         if (!(sender instanceof Player)) {
-            // 控制台只允许 build：地图自带世界，不需要玩家上下文
+            // 控制台可以跑只读诊断与 build，其余需要玩家上下文
+            if (args.length >= 1 && args[0].equalsIgnoreCase("map")) {
+                return handleMapConsole(sender, args);
+            }
+            if (args.length >= 1 && args[0].equalsIgnoreCase("status")) {
+                return showStatusConsole(sender);
+            }
             if (args.length >= 2 && args[0].equalsIgnoreCase("build")) {
                 return buildArena(sender, args[1]);
             }
-            sender.sendMessage("控制台只支持 /htf build <地图名>，其余命令需要玩家执行");
+            sender.sendMessage("控制台支持：/htf status、/htf map、/htf build <地图名>");
             return true;
         }
         final Player player = (Player) sender;
@@ -113,6 +120,7 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
             case "undo" -> plugin.setup().undo(player);
             case "done" -> plugin.setup().done(player);
             case "reset" -> plugin.setup().reset(player);
+            case "point" -> plugin.setup().recordTargetPoint(player);
             case "cancel" -> plugin.setup().cancel(player);
             case "start" -> args.length < 3
                     ? true
@@ -122,6 +130,49 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
                 yield true;
             }
         };
+    }
+
+    /** 控制台版：只读诊断。 */
+    private boolean showStatusConsole(org.bukkit.command.CommandSender sender) {
+        sender.sendMessage("—— 战线模式状态 ——");
+        sender.sendMessage("配置的大厅世界：" + plugin.config().lobbyWorld()
+                + (Bukkit.getWorld(plugin.config().lobbyWorld()) == null ? "（未加载！）" : ""));
+        sender.sendMessage("当前阶段：" + plugin.match().phase());
+        if (plugin.maps().isEmpty()) {
+            sender.sendMessage("地图：还没有");
+        } else {
+            sender.sendMessage("地图：");
+            plugin.maps().forEach((name, map) -> sender.sendMessage(" - " + name + " → 世界 "
+                    + map.world()
+                    + (Bukkit.getWorld(map.world()) == null ? "（世界未加载）" : "")
+                    + (map.world().equals(plugin.config().lobbyWorld()) ? "  ← 就是大厅世界，开不了局" : "")));
+        }
+        return true;
+    }
+
+    /** 控制台版地图列表。 */
+    private boolean handleMapConsole(org.bukkit.command.CommandSender sender, String[] args) {
+        if (args.length < 2) {
+            if (plugin.maps().isEmpty()) {
+                sender.sendMessage("还没有任何地图");
+                return true;
+            }
+            plugin.maps().forEach((name, map) -> sender.sendMessage(
+                    name + " → 世界 " + map.world() + "，" + map.checkpoints().size() + " 帧"));
+            return true;
+        }
+        if (args[1].equalsIgnoreCase("remove") && args.length >= 3) {
+            sender.sendMessage(plugin.removeMap(args[2])
+                    ? "已删除地图 " + args[2] : "没有这张地图：" + args[2]);
+            return true;
+        }
+        if (args[1].equalsIgnoreCase("setworld") && args.length >= 4) {
+            final String error = plugin.rebindMap(args[2], args[3]);
+            sender.sendMessage(error == null ? "已把 " + args[2] + " 绑定到世界 " + args[3] : error);
+            return true;
+        }
+        sender.sendMessage("用法：/htf map [remove|setworld <地图名> <世界名>]");
+        return true;
     }
 
     /** 一眼看清当前配置与地图状态。 */
@@ -389,7 +440,7 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
             return List.of("red", "blue");
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("setup")) {
-            return List.of("spawn", "undo", "start", "done", "reset", "cancel");
+            return List.of("point", "spawn", "undo", "start", "done", "reset", "cancel");
         }
         if (args.length == 3 && args[0].equalsIgnoreCase("setup")
                 && args[1].equalsIgnoreCase("spawn")) {

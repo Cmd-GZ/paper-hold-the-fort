@@ -92,6 +92,37 @@ public final class SetupManager implements Listener {
         return true;
     }
 
+    /**
+     * 不用木棍，直接记录「你正看着的那个方块」（看不到就看脚下）。
+     *
+     * <p>给木棍点击被其它插件拦截、或在没有可点方块的场合兜底。
+     */
+    public boolean recordTargetPoint(Player player) {
+        final SetupSession session = sessions.get(player.getUniqueId());
+        if (session == null) {
+            player.sendMessage("§c先执行 /htf setup 开始建场");
+            return true;
+        }
+        final var target = player.getTargetBlockExact(100);
+        final int bx;
+        final int bz;
+        if (target != null && target.getWorld().getName().equals(session.worldName())) {
+            bx = target.getX();
+            bz = target.getZ();
+        } else {
+            bx = player.getLocation().getBlockX();
+            bz = player.getLocation().getBlockZ();
+        }
+
+        final CheckpointPair completed = session.recordPoint(new Vec2(bx + 0.5, bz + 0.5));
+        if (completed == null) {
+            player.sendMessage("§7已记录点 (" + bx + ", " + bz + ")，再来一次组成一帧");
+        } else {
+            player.sendMessage("§a第 " + session.frames().size() + " 帧已记录 (" + bx + ", " + bz + ")");
+        }
+        return true;
+    }
+
     /** 撤销最后一个点或最后一帧。 */
     public boolean undo(Player player) {
         final SetupSession session = sessions.get(player.getUniqueId());

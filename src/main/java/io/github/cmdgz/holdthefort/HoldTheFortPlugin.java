@@ -248,6 +248,15 @@ public final class HoldTheFortPlugin extends JavaPlugin {
         MapReport.describe(map, result.chain())
                 .forEach(line -> getLogger().info("[" + map.name() + "] " + line));
 
+        if (map.world().equals(config.lobbyWorld())) {
+            getLogger().warning("地图 " + map.name() + " 声明的世界（" + map.world()
+                    + "）就是大厅世界，这张图无法开局。请在大厅之外的世界用 /htf setup 重建，"
+                    + "或用 /htf map setworld " + map.name() + " <战场世界> 改绑定");
+        } else if (Bukkit.getWorld(map.world()) == null) {
+            getLogger().warning("地图 " + map.name() + " 声明的世界（" + map.world()
+                    + "）当前未加载，开局前请先加载它");
+        }
+
         maps.put(map.name(), map);
         chains.put(map.name(), result.chain());
     }

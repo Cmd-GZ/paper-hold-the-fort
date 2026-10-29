@@ -33,3 +33,4 @@ Thumbs.db
 
 # ---- 其它 ---
 ignores/
+.server/

@@ -257,6 +257,41 @@ public final class MatchManager {
                 && blue + free >= 1;
     }
 
+    /** 找一张世界已加载、且不与大厅世界相同的地图。 */
+    private String pickPlayableMap() {
+        final String lobbyName = plugin.config().lobbyWorld();
+        for (String candidate : plugin.maps().keySet()) {
+            final MapDefinition candidateMap = plugin.maps().get(candidate);
+            if (Bukkit.getWorld(candidateMap.world()) == null) {
+                continue;
+            }
+            if (!plugin.config().allowSameWorld()
+                    && candidateMap.world().equals(lobbyName)) {
+                continue;
+            }
+            return candidate;
+        }
+        return null;
+    }
+
+    private String describeUnusableMaps() {
+        if (plugin.maps().isEmpty()) {
+            return "还没有任何地图，先在战场世界里执行 /htf setup 做一张。";
+        }
+        final StringBuilder sb = new StringBuilder("现有地图：");
+        plugin.maps().forEach((name, m) -> {
+            sb.append(name).append("→世界 ").append(m.world());
+            if (Bukkit.getWorld(m.world()) == null) {
+                sb.append("（未加载）");
+            } else if (!plugin.config().allowSameWorld()
+                    && m.world().equals(plugin.config().lobbyWorld())) {
+                sb.append("（就是大厅世界）");
+            }
+            sb.append("；");
+        });
+        return sb.toString();
+    }
+
     /** 开局失败：回到 WAITING，并冷却一段时间，避免每 tick 重试。 */
     private void failStart(String reason) {
         broadcast(reason + "（" + (RETRY_COOLDOWN_MS / 1000) + " 秒内不再重试）");
@@ -281,7 +316,12 @@ public final class MatchManager {
             phase = MatchPhase.WAITING;
             return;
         }
-        final String name = chains.keySet().iterator().next();
+        // 选一张真正能开的地图（世界已加载、且不是大厅世界），而不是盲取第一张
+        final String name = pickPlayableMap();
+        if (name == null) {
+            failStart("没有可用的地图。" + describeUnusableMaps());
+            return;
+        }
         map = plugin.maps().get(name);
         chain = chains.get(name);
 
