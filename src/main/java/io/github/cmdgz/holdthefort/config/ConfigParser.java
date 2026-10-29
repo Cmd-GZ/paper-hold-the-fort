@@ -44,6 +44,8 @@ public final class ConfigParser {
         final int respawn = asInt(match.get("respawn_seconds"), "match.respawn_seconds", base.respawnSeconds());
         final boolean allowSameWorld = asBoolean(
                 match.get("allow_same_world"), "match.allow_same_world", base.allowSameWorld());
+        final boolean configureWorld = asBoolean(
+                match.get("configure_world"), "match.configure_world", base.configureWorld());
 
         final Map<?, ?> lobby = asMap(map.get("lobby"), "lobby", Map.of());
         final String lobbyWorld = lobby.get("world") == null
@@ -62,7 +64,8 @@ public final class ConfigParser {
                 respawn,
                 lobbyWorld,
                 lobbyPos,
-                allowSameWorld);
+                allowSameWorld,
+                configureWorld);
     }
 
     private static Map<?, ?> asMap(Object raw, String where) {

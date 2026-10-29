@@ -31,6 +31,7 @@ import io.github.cmdgz.holdthefort.frontline.Zone;
 import io.github.cmdgz.holdthefort.map.MapDefinition;
 import io.github.cmdgz.holdthefort.map.Spawn;
 import io.github.cmdgz.holdthefort.render.FrontlineRenderer;
+import io.github.cmdgz.holdthefort.world.ArenaWorldConfig;
 
 /**
  * 对局流程（§7）：WAITING → STARTING → RUNNING → ENDING → WAITING。
@@ -274,6 +275,11 @@ public final class MatchManager {
             phase = MatchPhase.WAITING;
             return;
         }
+        if (plugin.config().configureWorld()) {
+            // 世界已经由服务器/世界管理插件建好，这里只做局部配置
+            ArenaWorldConfig.apply(world, map);
+        }
+
         final World lobby = lobbyWorld();
         if (!plugin.config().allowSameWorld() && lobby != null && lobby.equals(world)) {
             broadcast("战场世界与大厅世界相同（" + world.getName()

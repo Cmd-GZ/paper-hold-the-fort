@@ -120,17 +120,11 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage("找不到地图 " + mapName);
             return true;
         }
-        World target = plugin.getServer().getWorld(map.world());
+        // 世界由服务器或世界管理插件负责创建，本插件只往里铺场地
+        final World target = plugin.getServer().getWorld(map.world());
         if (target == null) {
-            // 战场的世界不存在就建一个超平坦空岛，保证插件在任何服上都能自测
-            sender.sendMessage("世界 " + map.world() + " 不存在，正在创建…");
-            target = new org.bukkit.WorldCreator(map.world())
-                    .type(org.bukkit.WorldType.FLAT)
-                    .generateStructures(false)
-                    .createWorld();
-        }
-        if (target == null) {
-            sender.sendMessage("无法创建世界 " + map.world());
+            sender.sendMessage("世界 " + map.world() + " 不存在。"
+                    + "请先用服务器或世界管理插件创建它，本插件不会替你建世界。");
             return true;
         }
         sender.sendMessage("正在生成战场，稍等…");

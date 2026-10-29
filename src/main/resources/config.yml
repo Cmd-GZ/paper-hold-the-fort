@@ -18,6 +18,9 @@ match:
 
   # 战场世界与大厅世界相同时是否允许开局（默认禁止）
   allow_same_world: false
+  # 开局时是否按小游戏需要调整战场世界（时间/天气/刷怪/掉落等）。
+  # 战场世界由服务器或世界管理插件负责创建，本插件不会创建或卸载任何世界。
+  configure_world: true
 
 lobby:
   world: world

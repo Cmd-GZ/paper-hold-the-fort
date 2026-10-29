@@ -15,6 +15,7 @@ import io.github.cmdgz.holdthefort.map.Spawn;
  * @param lobbyWorld     大厅所在世界
  * @param lobby          大厅传送点
  * @param allowSameWorld 是否允许战场与大厅在同一个世界（默认禁止）
+ * @param configureWorld 开局时是否按小游戏需要调整战场世界的规则
  */
 public record PluginConfig(
         Defaults defaults,
@@ -24,7 +25,8 @@ public record PluginConfig(
         int respawnSeconds,
         String lobbyWorld,
         Spawn lobby,
-        boolean allowSameWorld) {
+        boolean allowSameWorld,
+        boolean configureWorld) {
 
     public static PluginConfig standard() {
         return new PluginConfig(
@@ -35,6 +37,7 @@ public record PluginConfig(
                 5,
                 "world",
                 new Spawn(0.5, 65, 0.5),
-                false);
+                false,
+                true);
     }
 }
