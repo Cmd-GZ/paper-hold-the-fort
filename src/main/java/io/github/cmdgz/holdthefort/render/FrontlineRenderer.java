@@ -36,7 +36,12 @@ public final class FrontlineRenderer {
     /** 距离分档（到线段最近点）。 */
     private static final double NEAR_RANGE = 32;
     private static final double MID_RANGE = 96;
-    private static final double MAX_RANGE = 256;
+    /**
+     * 越过这个距离就不发。
+     *
+     * <p>客户端最多只渲染 128 格内的粒子（即使开了 longDistance），再远发过去也没人看得见。
+     */
+    private static final double MAX_RANGE = 128;
 
     /** 各档的横向步长。 */
     private static final double STEP_NEAR = 0.5;
@@ -213,8 +218,10 @@ public final class FrontlineRenderer {
         for (int y : surfaces) {
             final Location spot = new Location(world, x, y + 1.1, z);
             for (Player player : audience) {
+                // 最后一个参数 force=true 对应协议里的 longDistance：
+                // 客户端的粒子剔除距离从 32 格放宽到 128 格，否则镜头一远粒子就整片消失。
                 player.spawnParticle(Particle.DUST, spot, PARTICLES_PER_POINT,
-                        JITTER, 0.05, JITTER, 0, dust);
+                        JITTER, 0.05, JITTER, 0, dust, true);
             }
         }
     }

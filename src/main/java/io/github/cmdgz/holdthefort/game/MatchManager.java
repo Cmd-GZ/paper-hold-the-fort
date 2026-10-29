@@ -114,6 +114,32 @@ public final class MatchManager {
         }
     }
 
+    /**
+     * 强行中止当前对局（{@code /htf stop}）：倒计时、对局、结算都会被终止，回到 WAITING。
+     *
+     * @return 是否真的中止了什么
+     */
+    public boolean abort() {
+        if (phase == MatchPhase.WAITING || phase == MatchPhase.IDLE) {
+            return false;
+        }
+        if (renderer != null) {
+            renderer.remove();
+            renderer = null;
+        }
+        clearHud();
+        toLobby();
+        clearParticipants();
+        forced = false;
+        countdown = 0;
+        ending = 0;
+        retryBlockedUntil = 0;
+        phase = MatchPhase.WAITING;
+        cleanupMatch();
+        broadcast("对局已被手动终止");
+        return true;
+    }
+
     /** 报名：{@code team} 为 {@code null} 表示先排队，开局时自动分到人少的一队（§7）。 */
     public boolean join(Player player, Team team) {
         if (phase == MatchPhase.RUNNING || phase == MatchPhase.ENDING) {

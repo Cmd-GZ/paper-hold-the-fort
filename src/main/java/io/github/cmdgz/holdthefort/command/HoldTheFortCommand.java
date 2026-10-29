@@ -89,7 +89,7 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
             case "red" -> setTeam(player, Team.RED);
             case "blue" -> setTeam(player, Team.BLUE);
             case "line" -> startLine(player, args.length > 1 ? args[1] : null);
-            case "stop" -> stopLine(player);
+            case "stop" -> stopEverything(player);
             case "build" -> buildArena(player, args.length > 1 ? args[1] : null);
             case "start" -> startMatch(player);
             default -> {
@@ -412,6 +412,20 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
         }
     }
 
+    /** {@code /htf stop}：既有调试战线，也有正式对局，一起停掉。 */
+    private boolean stopEverything(Player player) {
+        final boolean abortedMatch = plugin.match() != null && plugin.match().abort();
+        final boolean stoppedLine = stopLine(null);
+        if (!abortedMatch && !stoppedLine) {
+            player.sendMessage("当前没有进行中的对局或调试战线");
+        } else {
+            player.sendMessage("已停止" + (abortedMatch ? "对局" : "") 
+                    + (abortedMatch && stoppedLine ? "与" : "")
+                    + (stoppedLine ? "调试战线" : ""));
+        }
+        return true;
+    }
+
     private boolean stopLine(Player player) {
         if (task != null) {
             task.cancel();
@@ -421,13 +435,14 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
             renderer.remove();
             renderer = null;
         }
+        final boolean had = progress != null || renderer != null;
         progress = null;
         chain = null;
         world = null;
-        if (player != null) {
+        if (player != null && had) {
             player.sendMessage("战线已移除");
         }
-        return true;
+        return had;
     }
 
     @Override
