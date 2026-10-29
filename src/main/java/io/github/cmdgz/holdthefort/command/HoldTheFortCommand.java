@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.bukkit.Color;
+import org.bukkit.GameMode;
+import org.bukkit.World;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -14,28 +16,40 @@ import org.jetbrains.annotations.NotNull;
 
 import io.github.cmdgz.holdthefort.HoldTheFortPlugin;
 import io.github.cmdgz.holdthefort.frontline.FrontlineChain;
+import io.github.cmdgz.holdthefort.frontline.FrontlineSample;
+import io.github.cmdgz.holdthefort.frontline.Vec2;
 import io.github.cmdgz.holdthefort.game.Acceleration;
+import io.github.cmdgz.holdthefort.game.Counts;
 import io.github.cmdgz.holdthefort.game.ProgressState;
+import io.github.cmdgz.holdthefort.game.Team;
+import io.github.cmdgz.holdthefort.game.ZoneCounter;
 import io.github.cmdgz.holdthefort.map.MapDefinition;
 import io.github.cmdgz.holdthefort.render.FrontlineRenderer;
 
 /**
  * 调试命令 {@code /htf}。
  *
- * <p>当前只提供「把某张地图的战线摆出来并让它动」的能力，用于肉眼验证 §3、§4、§6。
+ * <p>提供的最小闭环：{@code /htf red|blue} 分队，{@code /htf line <地图>} 摆出战线，
+ * 之后战线会根据**真实玩家**的越线人数推进或后退（§5.2、§5.3）。
  */
 public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
 
-    /** 渲染刷新间隔（tick）。粒子比较贵，不必每 tick 重画（§4.4）。 */
-    private static final int RENDER_INTERVAL = 10;
+    /** §4.4：渲染每 2 tick 重算一次。 */
+    private static final int RENDER_INTERVAL = 2;
+
+    private static final Color COLOR_RED = Color.fromRGB(220, 60, 60);
+    private static final Color COLOR_BLUE = Color.fromRGB(60, 110, 220);
+    private static final Color COLOR_NEUTRAL = Color.fromRGB(220, 220, 220);
 
     private final HoldTheFortPlugin plugin;
 
     private FrontlineRenderer renderer;
     private FrontlineChain chain;
     private ProgressState progress;
+    private World world;
     private BukkitTask task;
     private int tickCounter;
+    private Counts lastCounts = Counts.NONE;
 
     public HoldTheFortCommand(HoldTheFortPlugin plugin) {
         this.plugin = plugin;
@@ -49,10 +63,12 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
             return true;
         }
         if (args.length == 0) {
-            player.sendMessage("用法：/htf line <地图名> | /htf stop");
+            player.sendMessage("用法：/htf red | /htf blue | /htf line <地图名> | /htf stop");
             return true;
         }
         return switch (args[0].toLowerCase()) {
+            case "red" -> setTeam(player, Team.RED);
+            case "blue" -> setTeam(player, Team.BLUE);
             case "line" -> startLine(player, args.length > 1 ? args[1] : null);
             case "stop" -> stopLine(player);
             default -> {
@@ -62,44 +78,107 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
         };
     }
 
+    private boolean setTeam(Player player, Team team) {
+        plugin.setTeam(player, team);
+        player.sendMessage("已加入" + (team == Team.RED ? "红方" : "蓝方"));
+        return true;
+    }
+
     private boolean startLine(Player player, String mapName) {
         if (mapName == null) {
             player.sendMessage("请指定地图名，可用：" + plugin.chains().keySet());
             return true;
         }
-        final FrontlineChain chain = plugin.chains().get(mapName);
+        final FrontlineChain selected = plugin.chains().get(mapName);
         final MapDefinition map = plugin.maps().get(mapName);
-        if (chain == null || map == null) {
+        if (selected == null || map == null) {
             player.sendMessage("找不到地图 " + mapName + "，可用：" + plugin.chains().keySet());
             return true;
         }
 
         stopLine(player);
 
-        this.chain = chain;
-        renderer = new FrontlineRenderer(player.getWorld(), chain);
-        progress = new ProgressState(chain, map.speed(), Acceleration.defaults());
-        renderer.spawn(chain.sample(0));
-        tickCounter = 0;
+        this.chain = selected;
+        this.world = player.getWorld();
+        this.progress = new ProgressState(selected, map.speed(), Acceleration.defaults());
+        this.renderer = new FrontlineRenderer(world, selected);
+        this.lastCounts = Counts.NONE;
+        this.tickCounter = 0;
 
-        task = plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick,
-                1L, 1L);
+        final FrontlineSample start = selected.sample(0);
+        renderer.spawn(start);
+        renderer.update(start, COLOR_NEUTRAL);
 
-        player.sendMessage("已在 " + mapName + " 上召唤战线，u = 0，正在以红方优势推进");
+        task = plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, 1L, 1L);
+
+        player.sendMessage("已在 " + mapName + " 上摆出战线，u = 0 —— 越线的人会让它移动");
         return true;
     }
 
     private void tick() {
-        if (progress == null || renderer == null || chain == null) {
+        if (progress == null || renderer == null || chain == null || world == null) {
             return;
         }
-        progress.tick(0.05, 1.0);
-        if (++tickCounter % RENDER_INTERVAL == 0) {
-            // §4.2：颜色表示趋势，这里恒为红方推进
-            renderer.update(chain.sample(progress.u()), Color.fromRGB(220, 60, 60));
+
+        lastCounts = countInvaders();
+        final double factor = ZoneCounter.factor(lastCounts);
+
+        final double before = progress.u();
+        progress.tick(0.05, factor);
+        final double delta = progress.u() - before;
+
+        if (tickCounter++ % RENDER_INTERVAL == 0) {
+            renderer.update(chain.sample(progress.u()), colorFor(delta));
         }
+
         if (!progress.isRunning()) {
+            broadcastOutcome();
             stopLine(null);
+        }
+    }
+
+    /** 收集双方「可计数」玩家（§5.2）：同世界、存活、非观战。 */
+    private Counts countInvaders() {
+        final List<Vec2> reds = new ArrayList<>();
+        final List<Vec2> blues = new ArrayList<>();
+        for (Player p : world.getPlayers()) {
+            if (p.isDead() || p.getGameMode() == GameMode.SPECTATOR) {
+                continue;
+            }
+            final Team team = plugin.teamOf(p);
+            if (team == null) {
+                continue;
+            }
+            final Vec2 pos = new Vec2(p.getLocation().getX(), p.getLocation().getZ());
+            if (team == Team.RED) {
+                reds.add(pos);
+            } else {
+                blues.add(pos);
+            }
+        }
+        return ZoneCounter.count(chain, progress.u(), reds, blues);
+    }
+
+    /** §4.2：颜色表示趋势，不表示归属。 */
+    private static Color colorFor(double deltaU) {
+        if (deltaU > 1e-9) {
+            return COLOR_RED;
+        }
+        if (deltaU < -1e-9) {
+            return COLOR_BLUE;
+        }
+        return COLOR_NEUTRAL;
+    }
+
+    private void broadcastOutcome() {
+        final String message = switch (progress.outcome()) {
+            case RED_WIN -> "红方把战线推到了蓝方基地";
+            case BLUE_WIN -> "蓝方把战线推到了红方基地";
+            case DRAW -> "时间到，双方路程相同";
+            case ONGOING -> "";
+        };
+        if (!message.isEmpty()) {
+            plugin.getServer().broadcastMessage(message);
         }
     }
 
@@ -114,6 +193,7 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
         }
         progress = null;
         chain = null;
+        world = null;
         if (player != null) {
             player.sendMessage("战线已移除");
         }
@@ -124,7 +204,7 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
     public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command,
             @NotNull String alias, @NotNull String[] args) {
         if (args.length == 1) {
-            return List.of("line", "stop");
+            return List.of("red", "blue", "line", "stop");
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("line")) {
             return new ArrayList<>(plugin.chains().keySet());

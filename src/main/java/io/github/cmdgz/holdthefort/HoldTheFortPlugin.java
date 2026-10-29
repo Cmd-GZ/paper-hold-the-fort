@@ -5,16 +5,20 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Stream;
 
 import org.bukkit.command.PluginCommand;
+import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import io.github.cmdgz.holdthefort.command.HoldTheFortCommand;
 import io.github.cmdgz.holdthefort.config.ConfigParser;
 import io.github.cmdgz.holdthefort.config.PluginConfig;
+import io.github.cmdgz.holdthefort.game.Team;
 import io.github.cmdgz.holdthefort.frontline.FrontlineChain;
 import io.github.cmdgz.holdthefort.map.Defaults;
 import io.github.cmdgz.holdthefort.map.MapDefinition;
@@ -36,6 +40,8 @@ public final class HoldTheFortPlugin extends JavaPlugin {
     private PluginConfig config;
     private final Map<String, MapDefinition> maps = new LinkedHashMap<>();
     private final Map<String, FrontlineChain> chains = new LinkedHashMap<>();
+    /** 临时的分队表；正式的对局分队属于 §7 的流程，尚未实现。 */
+    private final Map<UUID, Team> teams = new HashMap<>();
 
     @Override
     public void onEnable() {
@@ -74,6 +80,20 @@ public final class HoldTheFortPlugin extends JavaPlugin {
 
     public Map<String, MapDefinition> maps() {
         return Map.copyOf(maps);
+    }
+
+    /** 玩家所在队伍，未分队时返回 {@code null}。 */
+    public Team teamOf(Player player) {
+        return teams.get(player.getUniqueId());
+    }
+
+    public void setTeam(Player player, Team team) {
+        teams.put(player.getUniqueId(), team);
+    }
+
+    /** 玩家退出时清掉分队记录。 */
+    public void forget(Player player) {
+        teams.remove(player.getUniqueId());
     }
 
     private boolean loadConfig() {
