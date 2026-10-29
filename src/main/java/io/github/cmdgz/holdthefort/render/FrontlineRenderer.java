@@ -43,7 +43,13 @@ public final class FrontlineRenderer {
     private static final double STEP_MID = 1.0;
     private static final double STEP_FAR = 2.0;
 
-    /** 颜色平滑用的过渡步数：渲染每 2 tick 一次，10 步 ≈ 1 秒。 */
+    /** 每个落点点亮几个粒子（带轻微抖动），调高会让战线更连续。 */
+    private static final int PARTICLES_PER_POINT = 3;
+
+    /** 抖动半径：让点子不至于像一串整齐的灯珠。 */
+    private static final double JITTER = 0.25;
+
+    /** 颜色平滑用的过渡步数：渲染每 tick 一次，5 步 ≈ 0.25 秒。 */
     private static final int COLOR_TRANSITION_STEPS = 5;
 
     private final World world;
@@ -187,7 +193,8 @@ public final class FrontlineRenderer {
             }
             final Location spot = new Location(world, bx + 0.5, y + 1.1, bz + 0.5);
             for (Player player : audience) {
-                player.spawnParticle(Particle.DUST, spot, 1, 0, 0, 0, 0, dust);
+                player.spawnParticle(Particle.DUST, spot, PARTICLES_PER_POINT,
+                        JITTER, 0.05, JITTER, 0, dust);
             }
         }
     }

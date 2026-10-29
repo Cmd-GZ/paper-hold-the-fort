@@ -47,7 +47,10 @@ public final class MatchManager {
     private static final int ENDING_TICKS = 200;
 
     /** HUD 刷新间隔：每 2 tick 一次，与渲染同步（§4.4）。 */
-    private static final int HUD_INTERVAL = 2;
+    private static final int HUD_INTERVAL = 1;
+
+    /** 对波条的判定死区：不到这个幅度就显示中性色，避免来回闪。 */
+    private static final double TUG_DEADBAND = 0.02;
 
     private static final Color COLOR_RED = Color.fromRGB(220, 60, 60);
     private static final Color COLOR_BLUE = Color.fromRGB(60, 110, 220);
@@ -74,8 +77,8 @@ public final class MatchManager {
     private int ending;
     private int hudCounter;
 
-    private BossBar redBar;
-    private BossBar blueBar;
+    /** 单条「对波」进度条：中点 = 势均力敌，越靠右红方越接近胜利。 */
+    private BossBar tugBar;
     private Scoreboard scoreboard;
     private Objective sidebar;
 
@@ -499,14 +502,12 @@ public final class MatchManager {
     // ------------------------------------------------------------------ HUD
 
     private void createHud() {
-        redBar = Bukkit.createBossBar("红方", BarColor.RED, BarStyle.SOLID);
-        blueBar = Bukkit.createBossBar("蓝方", BarColor.BLUE, BarStyle.SOLID);
+        tugBar = Bukkit.createBossBar("战线", BarColor.WHITE, BarStyle.SOLID);
         scoreboard = Bukkit.getScoreboardManager().getNewScoreboard();
         sidebar = scoreboard.registerNewObjective("htf", Criteria.DUMMY, "战线模式");
         sidebar.setDisplaySlot(DisplaySlot.SIDEBAR);
         for (Player player : activeParticipants()) {
-            redBar.addPlayer(player);
-            blueBar.addPlayer(player);
+            tugBar.addPlayer(player);
             player.setScoreboard(scoreboard);
         }
     }
@@ -515,17 +516,30 @@ public final class MatchManager {
         final double toBlue = chain.pathLength(0, chain.to());
         final double toRed = Math.abs(chain.pathLength(0, chain.from()));
         final double u = progress.u();
-        final double redProgress = toBlue > 0 ? clamp(chain.pathLength(0, u) / toBlue) : 0;
-        final double blueProgress = toRed > 0 ? clamp(Math.abs(chain.pathLength(0, u)) / toRed) : 0;
 
-        if (redBar != null) {
-            redBar.setProgress(redProgress);
-            redBar.setTitle("红方推进 " + Math.round(redProgress * 100) + "%");
+        // 带符号的推进程度：红方领先为正、蓝方领先为负，各自归一化到 ±1。
+        // 注意不能对蓝方取绝对值 —— 那会让红方推进时蓝条也跟着涨。
+        final double signed = progress.signedDistance();
+        double net = signed >= 0
+                ? (toBlue > 0 ? signed / toBlue : 0)
+                : (toRed > 0 ? signed / toRed : 0);
+        net = Math.max(-1, Math.min(1, net));
+
+        if (tugBar != null) {
+            tugBar.setProgress(0.5 + 0.5 * net);
+            if (net > TUG_DEADBAND) {
+                tugBar.setColor(BarColor.RED);
+            } else if (net < -TUG_DEADBAND) {
+                tugBar.setColor(BarColor.BLUE);
+            } else {
+                tugBar.setColor(BarColor.WHITE);
+            }
+            tugBar.setTitle(String.format("红 %d%%  ←→  蓝 %d%%",
+                    Math.round(clamp(Math.max(0, net)) * 100),
+                    Math.round(clamp(Math.max(0, -net)) * 100)));
         }
-        if (blueBar != null) {
-            blueBar.setProgress(blueProgress);
-            blueBar.setTitle("蓝方推进 " + Math.round(blueProgress * 100) + "%");
-        }
+
+
         if (sidebar != null) {
             final int remaining = (int) Math.max(0, plugin.config().acceleration().tmaxSeconds() - progress.elapsedSeconds());
             setLine("red", "入侵者（红方） " + counts.redInvaders());
@@ -551,13 +565,9 @@ public final class MatchManager {
     }
 
     private void clearHud() {
-        if (redBar != null) {
-            redBar.removeAll();
-            redBar = null;
-        }
-        if (blueBar != null) {
-            blueBar.removeAll();
-            blueBar = null;
+        if (tugBar != null) {
+            tugBar.removeAll();
+            tugBar = null;
         }
         for (Player player : Bukkit.getOnlinePlayers()) {
             if (player.getScoreboard().equals(scoreboard)) {

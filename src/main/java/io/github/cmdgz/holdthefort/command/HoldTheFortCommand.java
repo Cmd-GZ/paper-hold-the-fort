@@ -36,8 +36,8 @@ import io.github.cmdgz.holdthefort.render.FrontlineRenderer;
  */
 public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
 
-    /** §4.4：渲染每 2 tick 重算一次。 */
-    private static final int RENDER_INTERVAL = 2;
+    /** §4.4：渲染每 tick 重算一次，让战线跟着 u 平滑移动。 */
+    private static final int RENDER_INTERVAL = 1;
 
     private static final Color COLOR_RED = Color.fromRGB(220, 60, 60);
     private static final Color COLOR_BLUE = Color.fromRGB(60, 110, 220);
