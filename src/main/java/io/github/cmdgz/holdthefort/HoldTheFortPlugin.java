@@ -9,8 +9,10 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import io.github.cmdgz.holdthefort.command.HoldTheFortCommand;
 import io.github.cmdgz.holdthefort.config.ConfigParser;
 import io.github.cmdgz.holdthefort.config.PluginConfig;
 import io.github.cmdgz.holdthefort.frontline.FrontlineChain;
@@ -44,8 +46,20 @@ public final class HoldTheFortPlugin extends JavaPlugin {
         }
         ensureSampleMap();
         loadMaps();
+        registerCommands();
         getLogger().info("Hold the Fort v" + getPluginMeta().getVersion()
                 + " 已启用，成功加载 " + maps.size() + " 张地图");
+    }
+
+    private void registerCommands() {
+        final PluginCommand command = getCommand("htf");
+        if (command == null) {
+            getLogger().warning("plugin.yml 里没有 htf 命令");
+            return;
+        }
+        final HoldTheFortCommand executor = new HoldTheFortCommand(this);
+        command.setExecutor(executor);
+        command.setTabCompleter(executor);
     }
 
     @Override
@@ -75,10 +89,14 @@ public final class HoldTheFortPlugin extends JavaPlugin {
 
     /** 首次运行时把示例地图放出去，免得玩家对着空目录发呆。 */
     private void ensureSampleMap() {
+        final File sample = new File(getDataFolder(), MAPS_DIR + "/river_crossing.yml");
+        if (sample.exists()) {
+            return;
+        }
         try {
             saveResource(MAPS_DIR + "/river_crossing.yml", false);
         } catch (IllegalArgumentException ignored) {
-            // 资源已存在或缺失都不影响加载
+            // jar 里没有这个资源时跳过，不影响其它地图
         }
     }
 

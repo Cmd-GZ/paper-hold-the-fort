@@ -32,7 +32,7 @@ Minecraft Java 版 **Paper** 服务端插件。两队（红 / 蓝）在一片战
 ```bash
 ./gradlew build      # 编译 + 测试 + 打包 → build/libs/
 ./gradlew test       # 只跑单元测试
-./gradlew runServer  # 下载并启动 Paper 26.3，自动装载刚构建的插件
+./gradlew runServer  # 下载并启动 Paper 26.2，自动装载刚构建的插件
 ```
 
 `runServer` 首次运行会在 `run/` 下生成服务端目录（已在 gitignore 中）。

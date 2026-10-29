@@ -3,4 +3,8 @@ version: '${version}'
 main: io.github.cmdgz.holdthefort.HoldTheFortPlugin
 description: 战线模式 —— 两队围绕一条横贯战场的战线对抗
 authors: [Cmd-GZ]
-api-version: '26.3'
+api-version: '26.2'
+commands:
+  htf:
+    description: 战线模式调试命令
+    usage: /htf line <地图名> | /htf stop
