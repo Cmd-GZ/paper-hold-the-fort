@@ -77,6 +77,7 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
             case "join" -> joinTeam(player, args);
             case "setup" -> handleSetup(player, args);
             case "map" -> handleMap(player, args);
+            case "status" -> showStatus(player);
             case "leave" -> plugin.match().leave(player);
             case "red" -> setTeam(player, Team.RED);
             case "blue" -> setTeam(player, Team.BLUE);
@@ -123,11 +124,36 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
         };
     }
 
+    /** 一眼看清当前配置与地图状态。 */
+    private boolean showStatus(Player player) {
+        player.sendMessage("§6—— 战线模式状态 ——");
+        player.sendMessage("§7配置的大厅世界：§f" + plugin.config().lobbyWorld());
+        player.sendMessage("§7你当前所在世界：§f" + player.getWorld().getName());
+        player.sendMessage("§7当前阶段：§f" + plugin.match().phase());
+        if (plugin.maps().isEmpty()) {
+            player.sendMessage("§7地图：§c还没有（用 /htf setup 做一张）");
+        } else {
+            player.sendMessage("§7地图：");
+            plugin.maps().forEach((name, map) -> player.sendMessage(
+                    "§7 - §e" + name + " §7→ 世界 §f" + map.world()
+                            + (map.world().equals(plugin.config().lobbyWorld())
+                                    ? " §c（就是大厅世界，开不了局）" : "")));
+        }
+        return true;
+    }
+
     /** 已保存地图的管理。 */
     private boolean handleMap(Player player, String[] args) {
         if (args.length < 2) {
-            player.sendMessage("§7已保存的地图：" + plugin.maps().keySet());
-            player.sendMessage("§7用法：§e/htf map remove <地图名>");
+            if (plugin.maps().isEmpty()) {
+                player.sendMessage("§7还没有任何地图。用 §e/htf setup §7做一张。");
+                return true;
+            }
+            player.sendMessage("§6已保存的地图：");
+            plugin.maps().forEach((name, map) -> player.sendMessage(
+                    "§7 - §e" + name + " §7→ 世界 §f" + map.world()
+                            + "§7，§f" + map.checkpoints().size() + "§7 帧"));
+            player.sendMessage("§7删除：§e/htf map remove <地图名>");
             return true;
         }
         if (!args[1].equalsIgnoreCase("remove")) {
@@ -340,7 +366,7 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
     public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command,
             @NotNull String alias, @NotNull String[] args) {
         if (args.length == 1) {
-            return List.of("join", "leave", "setup", "map", "start", "stop");
+            return List.of("join", "leave", "setup", "map", "status", "start", "stop");
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("join")) {
             return List.of("red", "blue");

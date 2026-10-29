@@ -189,7 +189,8 @@ public final class SetupManager implements Listener {
         takeBackWand(player);
         plugin.reloadMaps();
 
-        player.sendMessage("§a地图已保存：" + file.getName() + "（" + session.frames().size() + " 帧）");
+        player.sendMessage("§a地图已保存：" + file.getName() + "（" + session.frames().size()
+                + " 帧，世界 §f" + session.worldName() + "§a）");
         player.sendMessage("§7现在可以用 §e/htf join red §7开始测试了");
         return true;
     }
