@@ -93,16 +93,12 @@ public final class MatchListener implements Listener {
     }
 
     /**
-     * 进服即送到大厅（§7 的 WAITING 阶段）。
+     * 进服**不**做任何传送。
      *
-     * <p>这样「是否参与本局」只由所在世界决定，不必再猜玩家意图。
+     * <p>本插件可能装在别人的主城服务器上，把玩家拽走是越界的。参战一律靠主动报名。
      */
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
-        final Location lobby = plugin.lobbyLocation();
-        if (lobby != null) {
-            event.getPlayer().teleport(lobby);
-        }
         if (plugin.match() != null && plugin.match().phase() == MatchPhase.RUNNING) {
             event.getPlayer().sendMessage("[战线] 对局进行中，下一局开始时你才会参战");
         }

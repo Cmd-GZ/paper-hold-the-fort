@@ -18,6 +18,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import io.github.cmdgz.holdthefort.command.HoldTheFortCommand;
+import io.github.cmdgz.holdthefort.command.SetupManager;
 import io.github.cmdgz.holdthefort.listener.MatchListener;
 import io.github.cmdgz.holdthefort.config.ConfigParser;
 import io.github.cmdgz.holdthefort.config.PluginConfig;
@@ -47,6 +48,7 @@ public final class HoldTheFortPlugin extends JavaPlugin {
     /** 临时的分队表；正式的对局分队属于 §7 的流程，尚未实现。 */
     private final Map<UUID, Team> teams = new HashMap<>();
     private MatchManager matchManager;
+    private SetupManager setupManager;
 
     @Override
     public void onEnable() {
@@ -55,13 +57,17 @@ public final class HoldTheFortPlugin extends JavaPlugin {
             getLogger().severe("全局配置读取失败，插件不会加载任何地图");
             return;
         }
-        ensureSampleMap();
         loadMaps();
         registerCommands();
 
         matchManager = new MatchManager(this);
         matchManager.start();
+        setupManager = new SetupManager(this);
         getServer().getPluginManager().registerEvents(new MatchListener(this), this);
+        getServer().getPluginManager().registerEvents(setupManager, this);
+        if (maps.isEmpty()) {
+            getLogger().info("还没有任何地图。OP 在战场世界里执行 /htf setup 即可现场做一张。");
+        }
         getLogger().info("Hold the Fort v" + getPluginMeta().getVersion()
                 + " 已启用，成功加载 " + maps.size() + " 张地图");
     }
@@ -89,6 +95,17 @@ public final class HoldTheFortPlugin extends JavaPlugin {
 
     public MatchManager match() {
         return matchManager;
+    }
+
+    public SetupManager setup() {
+        return setupManager;
+    }
+
+    /** 重新读取 maps/ 目录（游戏内建场落盘后调用）。 */
+    public void reloadMaps() {
+        maps.clear();
+        chains.clear();
+        loadMaps();
     }
 
     /** 大厅传送点；配置的世界不存在时退回主世界出生点。 */
@@ -135,23 +152,11 @@ public final class HoldTheFortPlugin extends JavaPlugin {
         }
     }
 
-    /** 首次运行时把示例地图放出去，免得玩家对着空目录发呆。 */
-    private void ensureSampleMap() {
-        final File sample = new File(getDataFolder(), MAPS_DIR + "/river_crossing.yml");
-        if (sample.exists()) {
-            return;
-        }
-        try {
-            saveResource(MAPS_DIR + "/river_crossing.yml", false);
-        } catch (IllegalArgumentException ignored) {
-            // jar 里没有这个资源时跳过，不影响其它地图
-        }
-    }
-
     private void loadMaps() {
         final Path dir = new File(getDataFolder(), MAPS_DIR).toPath();
         if (!Files.isDirectory(dir)) {
-            getLogger().warning("没有找到 " + MAPS_DIR + "/ 目录，跳过地图加载");
+            // 首次安装还没有 maps/ 是正常的，下面会提示怎么建第一张地图
+            getLogger().info("尚未创建 " + MAPS_DIR + "/ 目录，跳过地图加载");
             return;
         }
         final Defaults defaults = config.defaults();

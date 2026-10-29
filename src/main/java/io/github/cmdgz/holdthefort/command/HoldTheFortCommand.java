@@ -69,11 +69,13 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
         }
         final Player player = (Player) sender;
         if (args.length == 0) {
-            player.sendMessage("用法：/htf join [red|blue] | leave | line <地图> | build <地图> | start | stop");
+            player.sendMessage("用法：/htf join [red|blue] | leave | start | stop");
+            player.sendMessage("      /htf setup [spawn red|blue | undo | start <编号> | done | cancel]");
             return true;
         }
         return switch (args[0].toLowerCase()) {
             case "join" -> joinTeam(player, args);
+            case "setup" -> handleSetup(player, args);
             case "leave" -> plugin.match().leave(player);
             case "red" -> setTeam(player, Team.RED);
             case "blue" -> setTeam(player, Team.BLUE);
@@ -83,6 +85,37 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
             case "start" -> startMatch(player);
             default -> {
                 player.sendMessage("未知子命令：" + args[0]);
+                yield true;
+            }
+        };
+    }
+
+    /** 游戏内建场：让管理员不碰文件就能做出地图。 */
+    private boolean handleSetup(Player player, String[] args) {
+        if (!player.hasPermission("htf.setup")) {
+            player.sendMessage("§c你没有建场权限（htf.setup）");
+            return true;
+        }
+        if (args.length == 1) {
+            plugin.setup().begin(player);
+            return true;
+        }
+        return switch (args[1].toLowerCase()) {
+            case "spawn" -> {
+                if (args.length < 3) {
+                    player.sendMessage("§c用法：/htf setup spawn red|blue");
+                    yield true;
+                }
+                yield plugin.setup().recordSpawn(player, args[2].equalsIgnoreCase("red"));
+            }
+            case "undo" -> plugin.setup().undo(player);
+            case "done" -> plugin.setup().done(player);
+            case "cancel" -> plugin.setup().cancel(player);
+            case "start" -> args.length < 3
+                    ? true
+                    : plugin.setup().setStartIndex(player, args[2]);
+            default -> {
+                player.sendMessage("§c未知的建场子命令");
                 yield true;
             }
         };
@@ -267,9 +300,16 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
     public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command,
             @NotNull String alias, @NotNull String[] args) {
         if (args.length == 1) {
-            return List.of("join", "leave", "line", "build", "start", "stop");
+            return List.of("join", "leave", "setup", "start", "stop");
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("join")) {
+            return List.of("red", "blue");
+        }
+        if (args.length == 2 && args[0].equalsIgnoreCase("setup")) {
+            return List.of("spawn", "undo", "start", "done", "cancel");
+        }
+        if (args.length == 3 && args[0].equalsIgnoreCase("setup")
+                && args[1].equalsIgnoreCase("spawn")) {
             return List.of("red", "blue");
         }
         if (args.length == 2 && (args[0].equalsIgnoreCase("line") || args[0].equalsIgnoreCase("build"))) {

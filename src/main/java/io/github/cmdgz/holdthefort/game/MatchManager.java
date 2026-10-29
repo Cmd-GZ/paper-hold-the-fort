@@ -65,6 +65,12 @@ public final class MatchManager {
     private int countdown;
     /** 调试用的强制开局：跳过人数检查，单人也能试。 */
     private boolean forced;
+
+    /** 开局失败后的冷却截止时刻（毫秒）。避免条件一直成立却开不了局时无限刷屏。 */
+    private long retryBlockedUntil;
+
+    /** 开局失败后的冷却时长。 */
+    private static final long RETRY_COOLDOWN_MS = 30_000L;
     private int ending;
     private int hudCounter;
 
@@ -228,6 +234,9 @@ public final class MatchManager {
         if (forced) {
             return true;
         }
+        if (System.currentTimeMillis() < retryBlockedUntil) {
+            return false;
+        }
         int red = 0;
         int blue = 0;
         int free = 0;
@@ -246,6 +255,16 @@ public final class MatchManager {
                 && total >= 2
                 && red + free >= 1
                 && blue + free >= 1;
+    }
+
+    /** 开局失败：回到 WAITING，并冷却一段时间，避免每 tick 重试。 */
+    private void failStart(String reason) {
+        broadcast(reason + "（" + (RETRY_COOLDOWN_MS / 1000) + " 秒内不再重试）");
+        map = null;
+        chain = null;
+        world = null;
+        phase = MatchPhase.WAITING;
+        retryBlockedUntil = System.currentTimeMillis() + RETRY_COOLDOWN_MS;
     }
 
     private void beginCountdown() {
@@ -269,10 +288,8 @@ public final class MatchManager {
         // 战场必须是独立世界：绝不退回主世界，否则会直接在别人的大厅里开打
         world = Bukkit.getWorld(map.world());
         if (world == null) {
-            broadcast("地图 " + name + " 的世界 " + map.world() + " 未加载，无法开局");
-            map = null;
-            chain = null;
-            phase = MatchPhase.WAITING;
+            failStart("地图 " + name + " 的世界 " + map.world()
+                    + " 未加载。请先创建该世界，或在游戏内执行 /htf setup 重新指定场地。");
             return;
         }
         if (plugin.config().configureWorld()) {
@@ -282,11 +299,8 @@ public final class MatchManager {
 
         final World lobby = lobbyWorld();
         if (!plugin.config().allowSameWorld() && lobby != null && lobby.equals(world)) {
-            broadcast("战场世界与大厅世界相同（" + world.getName()
+            failStart("战场世界与大厅世界相同（" + world.getName()
                     + "），拒绝开局。请让地图使用独立世界，或设 match.allow_same_world: true");
-            map = null;
-            chain = null;
-            phase = MatchPhase.WAITING;
             return;
         }
 

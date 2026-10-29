@@ -4,6 +4,23 @@ main: io.github.cmdgz.holdthefort.HoldTheFortPlugin
 description: 战线模式 —— 两队围绕一条横贯战场的战线对抗
 authors: [Cmd-GZ]
 api-version: '26.2'
+
+# 主城（HubCore）靠这两行在菜单与 tab 里登记本游戏；没装 HubCore 时它们不起作用。
+# 用 softdepend 而不是 depend，保证本插件也能独立运行在只有 Paper 的服务器上。
+softdepend: [MiniGameLib, HubCore, GameWorlds]
+minigame-game: true
+minigame:
+  name: 战线模式
+  icon: SHIELD
+  color: 'c'
+permissions:
+  htf.use:
+    description: 使用 /htf join 等玩家命令
+    default: true
+  htf.setup:
+    description: 游戏内建场（/htf setup）
+    default: op
+
 commands:
   htf:
     description: 战线模式调试命令
