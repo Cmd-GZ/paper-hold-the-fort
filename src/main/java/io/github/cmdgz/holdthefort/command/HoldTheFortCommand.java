@@ -68,26 +68,12 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
             return true;
         }
         final Player player = (Player) sender;
-        // /join red|blue（§7）：与 /htf red|blue 等价
-        if (command.getName().equalsIgnoreCase("join")) {
-            if (args.length == 0) {
-                player.sendMessage("用法：/join red | /join blue");
-                return true;
-            }
-            return switch (args[0].toLowerCase()) {
-                case "red" -> setTeam(player, Team.RED);
-                case "blue" -> setTeam(player, Team.BLUE);
-                default -> {
-                    player.sendMessage("队伍只有 red 与 blue");
-                    yield true;
-                }
-            };
-        }
         if (args.length == 0) {
-            player.sendMessage("用法：/htf red | blue | line <地图> | stop | build <地图> | start");
+            player.sendMessage("用法：/htf join red|blue | line <地图> | build <地图> | start | stop");
             return true;
         }
         return switch (args[0].toLowerCase()) {
+            case "join" -> joinTeam(player, args);
             case "red" -> setTeam(player, Team.RED);
             case "blue" -> setTeam(player, Team.BLUE);
             case "line" -> startLine(player, args.length > 1 ? args[1] : null);
@@ -96,6 +82,22 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
             case "start" -> startMatch(player);
             default -> {
                 player.sendMessage("未知子命令：" + args[0]);
+                yield true;
+            }
+        };
+    }
+
+    /** {@code /htf join red|blue}（§7）。 */
+    private boolean joinTeam(Player player, String[] args) {
+        if (args.length < 2) {
+            player.sendMessage("用法：/htf join red | /htf join blue");
+            return true;
+        }
+        return switch (args[1].toLowerCase()) {
+            case "red" -> setTeam(player, Team.RED);
+            case "blue" -> setTeam(player, Team.BLUE);
+            default -> {
+                player.sendMessage("队伍只有 red 与 blue");
                 yield true;
             }
         };
@@ -141,6 +143,10 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
     }
 
     private boolean startLine(Player player, String mapName) {
+        if (plugin.match() != null && plugin.match().phase() != io.github.cmdgz.holdthefort.game.MatchPhase.WAITING) {
+            player.sendMessage("对局进行中，不能摆调试战线");
+            return true;
+        }
         if (mapName == null) {
             player.sendMessage("请指定地图名，可用：" + plugin.chains().keySet());
             return true;
@@ -260,9 +266,10 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
     public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command,
             @NotNull String alias, @NotNull String[] args) {
         if (args.length == 1) {
-            return command.getName().equalsIgnoreCase("join")
-                    ? List.of("red", "blue")
-                    : List.of("red", "blue", "line", "stop", "build", "start");
+            return List.of("join", "line", "build", "start", "stop");
+        }
+        if (args.length == 2 && args[0].equalsIgnoreCase("join")) {
+            return List.of("red", "blue");
         }
         if (args.length == 2 && (args[0].equalsIgnoreCase("line") || args[0].equalsIgnoreCase("build"))) {
             return new ArrayList<>(plugin.chains().keySet());

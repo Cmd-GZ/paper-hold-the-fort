@@ -144,7 +144,7 @@ public final class MatchManager {
     }
 
     private void tickRunning() {
-        if (participants().isEmpty()) {
+        if (activeParticipants().isEmpty()) {
             // 对局中全员离开：直接结束，不计胜负（§7）
             broadcast("全员离开，对局中止");
             finish(null);
@@ -180,8 +180,34 @@ public final class MatchManager {
 
     // ------------------------------------------------------------ 阶段转换
 
+    /**
+     * 开局条件（§7）：人数达标，且**每队至少 1 人**（未选边者会自动补位）。
+     *
+     * <p>只统计位于游戏区域（大厅或战场世界）的玩家 —— 跑到别的地图的人不算，
+     * 否则倒计时会在没人时继续推进。
+     */
     private boolean canStart() {
-        return forced || participants().size() >= plugin.config().minPlayers();
+        if (forced) {
+            return true;
+        }
+        int red = 0;
+        int blue = 0;
+        int free = 0;
+        for (Player player : activePlayers()) {
+            final Team team = plugin.teamOf(player);
+            if (team == Team.RED) {
+                red++;
+            } else if (team == Team.BLUE) {
+                blue++;
+            } else {
+                free++;
+            }
+        }
+        final int total = red + blue + free;
+        return total >= plugin.config().minPlayers()
+                && total >= 2
+                && red + free >= 1
+                && blue + free >= 1;
     }
 
     private void beginCountdown() {
@@ -216,7 +242,7 @@ public final class MatchManager {
         createHud();
         lastZones.clear();
 
-        for (Player player : participants()) {
+        for (Player player : activeParticipants()) {
             preparePlayer(player);
         }
 
@@ -257,7 +283,7 @@ public final class MatchManager {
         if (lobby == null) {
             return;
         }
-        for (Player player : Bukkit.getOnlinePlayers()) {
+        for (Player player : activeParticipants()) {
             player.teleport(lobby);
             player.setGameMode(GameMode.SURVIVAL);
         }
@@ -281,7 +307,7 @@ public final class MatchManager {
     private Counts countInvaders() {
         final List<Vec2> reds = new ArrayList<>();
         final List<Vec2> blues = new ArrayList<>();
-        for (Player player : participants()) {
+        for (Player player : activeParticipants()) {
             if (!player.getWorld().equals(world)) {
                 continue;
             }
@@ -295,13 +321,31 @@ public final class MatchManager {
         return ZoneCounter.count(chain, progress.u(), reds, blues);
     }
 
-    /** 可计数玩家：在线、存活、非观战（§5.2）。 */
-    public List<Player> participants() {
+    /**
+     * 位于**游戏区域**的玩家：大厅世界或战场世界。
+     *
+     * <p>这是「谁参与这一局」的唯一判据。跑到别的世界的人既不算人数，也不会被传送。
+     */
+    private List<Player> activePlayers() {
+        final World lobby = lobbyWorld();
+        final World arena = arenaWorld();
         final List<Player> result = new ArrayList<>();
         for (Player player : Bukkit.getOnlinePlayers()) {
             if (player.isDead() || player.getGameMode() == GameMode.SPECTATOR) {
                 continue;
             }
+            final World w = player.getWorld();
+            if ((lobby != null && w.equals(lobby)) || (arena != null && w.equals(arena))) {
+                result.add(player);
+            }
+        }
+        return result;
+    }
+
+    /** 已分队的玩家（§5.2 的计数对象）。 */
+    private List<Player> activeParticipants() {
+        final List<Player> result = new ArrayList<>();
+        for (Player player : activePlayers()) {
             if (plugin.teamOf(player) != null) {
                 result.add(player);
             }
@@ -309,9 +353,19 @@ public final class MatchManager {
         return result;
     }
 
+    private World lobbyWorld() {
+        final Location lobby = plugin.lobbyLocation();
+        return lobby == null ? null : lobby.getWorld();
+    }
+
+    private World arenaWorld() {
+        final MapDefinition first = plugin.maps().values().stream().findFirst().orElse(null);
+        return first == null ? null : Bukkit.getWorld(first.world());
+    }
+
     private void autoAssign() {
         final List<Player> unassigned = new ArrayList<>();
-        for (Player player : participants()) {
+        for (Player player : activePlayers()) {
             if (plugin.teamOf(player) == null) {
                 unassigned.add(player);
             }
@@ -335,7 +389,7 @@ public final class MatchManager {
         scoreboard = Bukkit.getScoreboardManager().getNewScoreboard();
         sidebar = scoreboard.registerNewObjective("htf", Criteria.DUMMY, "战线模式");
         sidebar.setDisplaySlot(DisplaySlot.SIDEBAR);
-        for (Player player : participants()) {
+        for (Player player : activeParticipants()) {
             redBar.addPlayer(player);
             blueBar.addPlayer(player);
             player.setScoreboard(scoreboard);
@@ -401,7 +455,7 @@ public final class MatchManager {
 
     /** 跨线即时提示（§4.3）。 */
     private void updateCrossLineHints() {
-        for (Player player : participants()) {
+        for (Player player : activeParticipants()) {
             if (!player.getWorld().equals(world)) {
                 continue;
             }
@@ -440,7 +494,7 @@ public final class MatchManager {
     }
 
     private void broadcast(String message) {
-        Bukkit.getOnlinePlayers().forEach(p -> p.sendMessage("[战线] " + message));
+        activePlayers().forEach(p -> p.sendMessage("[战线] " + message));
         plugin.getLogger().info(message);
     }
 }

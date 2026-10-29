@@ -76,11 +76,6 @@ public final class HoldTheFortPlugin extends JavaPlugin {
         command.setExecutor(executor);
         command.setTabCompleter(executor);
 
-        final PluginCommand join = getCommand("join");
-        if (join != null) {
-            join.setExecutor(executor);
-            join.setTabCompleter(executor);
-        }
     }
 
     @Override

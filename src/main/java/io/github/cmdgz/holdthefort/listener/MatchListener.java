@@ -89,9 +89,17 @@ public final class MatchListener implements Listener {
         plugin.forget(event.getPlayer());
     }
 
-    /** 中途加入：进入大厅，采用默认生存模式。 */
+    /**
+     * 进服即送到大厅（§7 的 WAITING 阶段）。
+     *
+     * <p>这样「是否参与本局」只由所在世界决定，不必再猜玩家意图。
+     */
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
+        final Location lobby = plugin.lobbyLocation();
+        if (lobby != null) {
+            event.getPlayer().teleport(lobby);
+        }
         if (plugin.match() != null && plugin.match().phase() == MatchPhase.RUNNING) {
             event.getPlayer().sendMessage("[战线] 对局进行中，下一局开始时你才会参战");
         }
