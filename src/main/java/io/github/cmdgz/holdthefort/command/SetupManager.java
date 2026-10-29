@@ -119,6 +119,19 @@ public final class SetupManager implements Listener {
         return true;
     }
 
+    /** 清空当前世界的所有已记录内容，重新开始。 */
+    public boolean reset(Player player) {
+        final SetupSession session = sessions.get(player.getUniqueId());
+        if (session == null) {
+            player.sendMessage("§c没有进行中的建场，先执行 /htf setup");
+            return true;
+        }
+        session.reset();
+        player.sendMessage("§a已清空本世界的关键帧与出生点，可以重新点线了");
+        player.sendMessage("§7已经保存过的地图文件不受影响；要删掉它用 §e/htf map remove <地图名>");
+        return true;
+    }
+
     /** 落盘。 */
     public boolean done(Player player) {
         final SetupSession session = sessions.get(player.getUniqueId());

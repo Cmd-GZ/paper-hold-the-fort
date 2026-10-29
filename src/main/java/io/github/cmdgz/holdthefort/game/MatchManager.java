@@ -297,10 +297,16 @@ public final class MatchManager {
             ArenaWorldConfig.apply(world, map);
         }
 
-        final World lobby = lobbyWorld();
-        if (!plugin.config().allowSameWorld() && lobby != null && lobby.equals(world)) {
-            failStart("战场世界与大厅世界相同（" + world.getName()
-                    + "），拒绝开局。请让地图使用独立世界，或设 match.allow_same_world: true");
+        // 只比较**配置里的世界名**。此前是拿解析出来的 World 对象比较，
+        // 而大厅世界找不到时会退回「第一个加载的世界」，在多世界服上会误判成同一世界。
+        final String lobbyWorldName = plugin.config().lobbyWorld();
+        if (!plugin.config().allowSameWorld()
+                && lobbyWorldName != null
+                && !lobbyWorldName.isBlank()
+                && world.getName().equals(lobbyWorldName)) {
+            failStart("地图 " + name + " 声明的世界（" + world.getName()
+                    + "）就是配置里的大厅世界。请把地图建在大厅之外的世界，"
+                    + "或改 config.yml 的 lobby.world");
             return;
         }
 

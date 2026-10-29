@@ -863,8 +863,10 @@ OP 在**战场世界**里按下面走一遍，地图就做好了，全程不需�
 | 4 | `/htf setup spawn blue` | 站在蓝方出生点执行 |
 | 5 | `/htf setup done` | 校验通过后写入 `maps/<世界名>.yml` 并自动加载 |
 
-辅助命令：`/htf setup undo`（撤销一个点或一帧）、`/htf setup start <编号>`（指定起点帧，默认取中间帧）、
-`/htf setup cancel`。
+辅助命令：`/htf setup undo`（撤销一个点或一帧）、`/htf setup reset`（清空本世界已记录的帧与出生点）、
+`/htf setup start <编号>`（指定起点帧，默认取中间帧）、`/htf setup cancel`。
+
+已保存的地图用 `/htf map remove <地图名>` 删除（文件与内存一起移除）；不带参数则列出全部地图。
 
 - 落盘的文件与手写格式完全一致，之后仍可手动编辑。
 - 建场在哪个世界进行，地图就属于哪个世界 —— **世界由服务器或世界管理插件负责创建**，插件只记录坐标。

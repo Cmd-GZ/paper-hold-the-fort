@@ -76,6 +76,7 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
         return switch (args[0].toLowerCase()) {
             case "join" -> joinTeam(player, args);
             case "setup" -> handleSetup(player, args);
+            case "map" -> handleMap(player, args);
             case "leave" -> plugin.match().leave(player);
             case "red" -> setTeam(player, Team.RED);
             case "blue" -> setTeam(player, Team.BLUE);
@@ -110,6 +111,7 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
             }
             case "undo" -> plugin.setup().undo(player);
             case "done" -> plugin.setup().done(player);
+            case "reset" -> plugin.setup().reset(player);
             case "cancel" -> plugin.setup().cancel(player);
             case "start" -> args.length < 3
                     ? true
@@ -119,6 +121,34 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
                 yield true;
             }
         };
+    }
+
+    /** 已保存地图的管理。 */
+    private boolean handleMap(Player player, String[] args) {
+        if (args.length < 2) {
+            player.sendMessage("§7已保存的地图：" + plugin.maps().keySet());
+            player.sendMessage("§7用法：§e/htf map remove <地图名>");
+            return true;
+        }
+        if (!args[1].equalsIgnoreCase("remove")) {
+            player.sendMessage("§c用法：/htf map remove <地图名>");
+            return true;
+        }
+        if (args.length < 3) {
+            player.sendMessage("§c请指定要删除的地图名，当前有：" + plugin.maps().keySet());
+            return true;
+        }
+        if (!player.hasPermission("htf.setup")) {
+            player.sendMessage("§c没有权限");
+            return true;
+        }
+        final String name = args[2];
+        if (plugin.removeMap(name)) {
+            player.sendMessage("§a已删除地图 " + name + "（文件与内存都已移除）");
+        } else {
+            player.sendMessage("§c没有这张地图：" + name + "，当前有：" + plugin.maps().keySet());
+        }
+        return true;
     }
 
     /** {@code /htf join [red|blue]}（§7）。不给队伍则先排队，开局自动分边。 */
@@ -310,17 +340,24 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
     public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command,
             @NotNull String alias, @NotNull String[] args) {
         if (args.length == 1) {
-            return List.of("join", "leave", "setup", "start", "stop");
+            return List.of("join", "leave", "setup", "map", "start", "stop");
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("join")) {
             return List.of("red", "blue");
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("setup")) {
-            return List.of("spawn", "undo", "start", "done", "cancel");
+            return List.of("spawn", "undo", "start", "done", "reset", "cancel");
         }
         if (args.length == 3 && args[0].equalsIgnoreCase("setup")
                 && args[1].equalsIgnoreCase("spawn")) {
             return List.of("red", "blue");
+        }
+        if (args.length == 2 && args[0].equalsIgnoreCase("map")) {
+            return List.of("remove");
+        }
+        if (args.length == 3 && args[0].equalsIgnoreCase("map")
+                && args[1].equalsIgnoreCase("remove")) {
+            return new ArrayList<>(plugin.maps().keySet());
         }
         if (args.length == 2 && (args[0].equalsIgnoreCase("line") || args[0].equalsIgnoreCase("build"))) {
             return new ArrayList<>(plugin.chains().keySet());

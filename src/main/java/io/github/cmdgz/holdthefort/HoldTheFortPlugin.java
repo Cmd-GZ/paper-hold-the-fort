@@ -49,6 +49,7 @@ public final class HoldTheFortPlugin extends JavaPlugin {
     private final Map<UUID, Team> teams = new HashMap<>();
     private MatchManager matchManager;
     private SetupManager setupManager;
+    private boolean warnedAboutLobby;
 
     @Override
     public void onEnable() {
@@ -113,9 +114,26 @@ public final class HoldTheFortPlugin extends JavaPlugin {
         final var world = Bukkit.getWorld(config.lobbyWorld());
         if (world == null) {
             final var first = getServer().getWorlds().getFirst();
+            if (!warnedAboutLobby) {
+                warnedAboutLobby = true;
+                getLogger().warning("config.yml 里的大厅世界 " + config.lobbyWorld()
+                        + " 不存在，暂时用 " + first.getName() + " 的世界出生点代替。"
+                        + "请把 lobby.world 改成实际的大厅世界名");
+            }
             return first.getSpawnLocation();
         }
         return new Location(world, config.lobby().x(), config.lobby().y(), config.lobby().z());
+    }
+
+    /** 删除一张已保存的地图（连同文件）。 */
+    public boolean removeMap(String name) {
+        final File file = new File(getDataFolder(), MAPS_DIR + "/" + name + ".yml");
+        if (!file.isFile() || !file.delete()) {
+            return false;
+        }
+        maps.remove(name);
+        chains.remove(name);
+        return true;
     }
 
     /** 已加载的地图名，供后续对局流程使用。 */

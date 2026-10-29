@@ -78,6 +78,14 @@ public final class SetupSession {
         return Math.max(1, Math.min(frames.size() - 2, (frames.size() - 1) / 2));
     }
 
+    /** 清空已记录的帧与出生点，保留世界与起始帧设置。 */
+    public void reset() {
+        frames.clear();
+        pending = null;
+        redSpawn = null;
+        blueSpawn = null;
+    }
+
     public List<CheckpointPair> frames() {
         return List.copyOf(frames);
     }
