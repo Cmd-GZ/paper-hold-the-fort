@@ -54,8 +54,8 @@ public final class FrontlineRenderer {
     /** 抖动半径：让点子不至于像一串整齐的灯珠。 */
     private static final double JITTER = 0.25;
 
-    /** 颜色平滑用的过渡步数：渲染每 tick 一次，5 步 ≈ 0.25 秒。 */
-    private static final int COLOR_TRANSITION_STEPS = 5;
+    /** 颜色平滑用的过渡步数：渲染每 tick 一次，8 步 ≈ 0.4 秒（§4.2 的 0.3~0.5 秒）。 */
+    private static final int COLOR_TRANSITION_STEPS = 8;
 
     private final World world;
     private final FrontlineChain chain;
