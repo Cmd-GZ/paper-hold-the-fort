@@ -46,7 +46,8 @@ public final class ArenaWorldConfig {
         world.setGameRule(GameRule.NATURAL_REGENERATION, true);
 
         world.setDifficulty(Difficulty.NORMAL);
-        world.setPVP(true);
+        // 注意：PvP 自 1.21.9 起改由游戏规则控制，World#setPVP 已废弃且不再影响伤害。
+        // 本插件**不**替世界打开 PvP —— 那是世界归属方（如 GameWorlds）的职责。
 
         // 世界出生点放到战线起点，方便从世界列表进入时落到场地中央
         world.setSpawnLocation(
