@@ -133,6 +133,22 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
     }
 
     /** 控制台版：只读诊断。 */
+    /** 参战者与其队伍。 */
+    private void dumpTeams(org.bukkit.command.CommandSender sender) {
+        final StringBuilder sb = new StringBuilder();
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            final Team team = plugin.teamOf(p);
+            if (team == null) {
+                continue;
+            }
+            if (!sb.isEmpty()) {
+                sb.append("§7，");
+            }
+            sb.append(team == Team.RED ? "§c" : "§9").append(p.getName());
+        }
+        sender.sendMessage("§7已分队：" + (sb.isEmpty() ? "§f（无）" : sb.toString()));
+    }
+
     private boolean showStatusConsole(org.bukkit.command.CommandSender sender) {
         sender.sendMessage("—— 战线模式状态 ——");
         sender.sendMessage("配置的大厅世界：" + plugin.config().lobbyWorld()
@@ -181,10 +197,15 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
         player.sendMessage("§7配置的大厅世界：§f" + plugin.config().lobbyWorld());
         player.sendMessage("§7你当前所在世界：§f" + player.getWorld().getName());
         player.sendMessage("§7当前阶段：§f" + plugin.match().phase());
+        player.sendMessage("§7你所在世界：§f" + player.getWorld().getName()
+                + "§7，PVP = §f" + player.getWorld().getPVP()
+                + "§7，规则 pvp = §f"
+                + player.getWorld().getGameRuleValue(org.bukkit.GameRule.PVP));
         if (plugin.maps().isEmpty()) {
             player.sendMessage("§7地图：§c还没有（用 /htf setup 做一张）");
         } else {
-            player.sendMessage("§7地图：");
+            dumpTeams(player);
+        player.sendMessage("§7地图：");
             plugin.maps().forEach((name, map) -> player.sendMessage(
                     "§7 - §e" + name + " §7→ 世界 §f" + map.world()
                             + (map.world().equals(plugin.config().lobbyWorld())
