@@ -81,7 +81,10 @@ public final class SetupManager implements Listener {
             player.sendMessage("§c先执行 /htf setup 开始建场");
             return true;
         }
-        session.setSpawn(red, player.getLocation());
+        session.setSpawn(red,
+                player.getLocation().getX(),
+                player.getLocation().getY(),
+                player.getLocation().getZ());
         player.sendMessage("§a已记录" + (red ? "红方" : "蓝方") + "出生点："
                 + player.getLocation().getBlockX() + ", "
                 + player.getLocation().getBlockY() + ", "
@@ -129,6 +132,14 @@ public final class SetupManager implements Listener {
             return true;
         }
 
+        final var lobby = plugin.lobbyLocation();
+        if (!plugin.config().allowSameWorld() && lobby != null
+                && lobby.getWorld().getName().equals(session.worldName())) {
+            player.sendMessage("§c你现在站在大厅世界（" + session.worldName() + "）里建场。");
+            player.sendMessage("§7战场必须在大厅之外的世界。用 /gw tp <战场世界> 之类的方式过去再来。");
+            return true;
+        }
+
         final String name = session.worldName().toLowerCase().replaceAll("[^a-z0-9_-]", "_");
         final Defaults defaults = plugin.config().defaults();
         final MapDefinition map = new MapDefinition(
@@ -162,6 +173,7 @@ public final class SetupManager implements Listener {
         }
 
         sessions.remove(player.getUniqueId());
+        takeBackWand(player);
         plugin.reloadMaps();
 
         player.sendMessage("§a地图已保存：" + file.getName() + "（" + session.frames().size() + " 帧）");
@@ -172,8 +184,24 @@ public final class SetupManager implements Listener {
     /** 放弃建场。 */
     public boolean cancel(Player player) {
         sessions.remove(player.getUniqueId());
+        takeBackWand(player);
         player.sendMessage("§7已放弃本次建场");
         return true;
+    }
+
+    /** 把标尺木棍从背包里收掉，免得玩家带着一根没用的棍子。 */
+    private void takeBackWand(Player player) {
+        final var inventory = player.getInventory();
+        for (int slot = 0; slot < inventory.getSize(); slot++) {
+            final ItemStack stack = inventory.getItem(slot);
+            if (stack == null || !stack.hasItemMeta()) {
+                continue;
+            }
+            if (stack.getItemMeta().getPersistentDataContainer()
+                    .has(wandKey, PersistentDataType.BYTE)) {
+                inventory.setItem(slot, null);
+            }
+        }
     }
 
     // ------------------------------------------------------------- 木棍点击

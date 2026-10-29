@@ -3,8 +3,6 @@ package io.github.cmdgz.holdthefort.command;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.bukkit.Location;
-
 import io.github.cmdgz.holdthefort.frontline.Vec2;
 import io.github.cmdgz.holdthefort.map.CheckpointPair;
 import io.github.cmdgz.holdthefort.map.Spawn;
@@ -59,8 +57,8 @@ public final class SetupSession {
         return "没有可撤销的内容";
     }
 
-    public void setSpawn(boolean red, Location location) {
-        final Spawn spawn = new Spawn(location.getX(), location.getY(), location.getZ());
+    public void setSpawn(boolean red, double x, double y, double z) {
+        final Spawn spawn = new Spawn(x, y, z);
         if (red) {
             redSpawn = spawn;
         } else {
