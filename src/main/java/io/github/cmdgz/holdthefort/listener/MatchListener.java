@@ -86,6 +86,9 @@ public final class MatchListener implements Listener {
     /** 退出立即移出计数（§5.2）：队伍信息保留，靠在线状态过滤即可。 */
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
+        if (plugin.match() != null) {
+            plugin.match().onQuit(event.getPlayer());
+        }
         plugin.forget(event.getPlayer());
     }
 

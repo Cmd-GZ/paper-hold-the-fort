@@ -34,7 +34,7 @@ class MapParserTest {
     void exampleFromResourcesIsClean() throws IOException {
         final MapDefinition map = MapParser.parse(readResource("/maps/river_crossing.yml"), Defaults.standard());
         assertEquals("river_crossing", map.name());
-        assertEquals("world", map.world());
+        assertEquals("htf_arena", map.world(), "示例地图必须使用独立世界，不能落在主世界");
         assertEquals(5, map.checkpoints().size());
         assertEquals(2, map.startIndex());
         assertEquals(TurnLimit.NINETY, map.turnLimit());

@@ -69,11 +69,12 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
         }
         final Player player = (Player) sender;
         if (args.length == 0) {
-            player.sendMessage("用法：/htf join red|blue | line <地图> | build <地图> | start | stop");
+            player.sendMessage("用法：/htf join [red|blue] | leave | line <地图> | build <地图> | start | stop");
             return true;
         }
         return switch (args[0].toLowerCase()) {
             case "join" -> joinTeam(player, args);
+            case "leave" -> plugin.match().leave(player);
             case "red" -> setTeam(player, Team.RED);
             case "blue" -> setTeam(player, Team.BLUE);
             case "line" -> startLine(player, args.length > 1 ? args[1] : null);
@@ -87,10 +88,10 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
         };
     }
 
-    /** {@code /htf join red|blue}（§7）。 */
+    /** {@code /htf join [red|blue]}（§7）。不给队伍则先排队，开局自动分边。 */
     private boolean joinTeam(Player player, String[] args) {
         if (args.length < 2) {
-            player.sendMessage("用法：/htf join red | /htf join blue");
+            plugin.match().join(player, null);
             return true;
         }
         return switch (args[1].toLowerCase()) {
@@ -119,11 +120,17 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage("找不到地图 " + mapName);
             return true;
         }
-        final World target = sender instanceof Player p
-                ? p.getWorld()
-                : plugin.getServer().getWorld(map.world());
+        World target = plugin.getServer().getWorld(map.world());
         if (target == null) {
-            sender.sendMessage("地图 " + mapName + " 的世界 " + map.world() + " 未加载");
+            // 战场的世界不存在就建一个超平坦空岛，保证插件在任何服上都能自测
+            sender.sendMessage("世界 " + map.world() + " 不存在，正在创建…");
+            target = new org.bukkit.WorldCreator(map.world())
+                    .type(org.bukkit.WorldType.FLAT)
+                    .generateStructures(false)
+                    .createWorld();
+        }
+        if (target == null) {
+            sender.sendMessage("无法创建世界 " + map.world());
             return true;
         }
         sender.sendMessage("正在生成战场，稍等…");
@@ -266,7 +273,7 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
     public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command,
             @NotNull String alias, @NotNull String[] args) {
         if (args.length == 1) {
-            return List.of("join", "line", "build", "start", "stop");
+            return List.of("join", "leave", "line", "build", "start", "stop");
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("join")) {
             return List.of("red", "blue");

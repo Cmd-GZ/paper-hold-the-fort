@@ -1,5 +1,5 @@
 name: river_crossing
-world: world
+world: htf_arena
 
 spawns:
   red:  { x: 0, y: 64, z: -100 }

@@ -16,6 +16,9 @@ match:
   team_limit: 8       # 每队人数上限
   respawn_seconds: 5  # 重生等待
 
+  # 战场世界与大厅世界相同时是否允许开局（默认禁止）
+  allow_same_world: false
+
 lobby:
   world: world
   x: 0.5

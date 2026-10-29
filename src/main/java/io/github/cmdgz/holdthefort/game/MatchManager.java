@@ -3,7 +3,9 @@ package io.github.cmdgz.holdthefort.game;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import org.bukkit.Bukkit;
@@ -70,6 +72,14 @@ public final class MatchManager {
     private Scoreboard scoreboard;
     private Objective sidebar;
 
+    /**
+     * 已报名本局的玩家。
+     *
+     * <p>**只有主动报名的人参与对局**。这是本插件能在任意服务器上与别人的大厅共存的前提：
+     * 站在任何世界里都不会被自动拉进对局。
+     */
+    private final Set<UUID> queue = new HashSet<>();
+
     /** 上一 tick 每名玩家的区域，用来判断是否跨线（§4.3）。 */
     private final Map<UUID, Zone> lastZones = new HashMap<>();
 
@@ -94,16 +104,43 @@ public final class MatchManager {
         }
     }
 
-    /** 玩家选边：对局中不允许更换。 */
+    /** 报名：{@code team} 为 {@code null} 表示先排队，开局时自动分到人少的一队（§7）。 */
     public boolean join(Player player, Team team) {
         if (phase == MatchPhase.RUNNING || phase == MatchPhase.ENDING) {
-            player.sendMessage("对局进行中，无法更换队伍");
+            player.sendMessage("对局进行中，请等下一局。当前不会把你拉进正在进行的对局。");
             return false;
         }
-        plugin.setTeam(player, team);
-        player.sendMessage("已加入" + teamName(team) + "，当前 "
-                + countTeam(team) + "/" + plugin.config().teamLimit() + " 人");
+        if (team != null && countTeam(team) >= plugin.config().teamLimit()
+                && plugin.teamOf(player) != team) {
+            player.sendMessage(teamName(team) + "已满（" + plugin.config().teamLimit() + " 人）");
+            return false;
+        }
+        queue.add(player.getUniqueId());
+        if (team != null) {
+            plugin.setTeam(player, team);
+        }
+        player.sendMessage(team == null
+                ? "已加入等待，开局时自动分到人少的一队"
+                : "已加入" + teamName(team) + "，当前 " + countTeam(team)
+                        + "/" + plugin.config().teamLimit() + " 人");
         return true;
+    }
+
+    /** 退出报名。 */
+    public boolean leave(Player player) {
+        if (phase == MatchPhase.RUNNING) {
+            player.sendMessage("对局进行中，无法退出；直接离开服务器即可");
+            return false;
+        }
+        queue.remove(player.getUniqueId());
+        plugin.forget(player);
+        player.sendMessage("已退出等待");
+        return true;
+    }
+
+    /** 玩家下线：立即移出队列，不造成死锁（§7）。 */
+    public void onQuit(Player player) {
+        queue.remove(player.getUniqueId());
     }
 
     // ---------------------------------------------------------------- tick
@@ -193,7 +230,7 @@ public final class MatchManager {
         int red = 0;
         int blue = 0;
         int free = 0;
-        for (Player player : activePlayers()) {
+        for (Player player : queuedPlayers()) {
             final Team team = plugin.teamOf(player);
             if (team == Team.RED) {
                 red++;
@@ -227,9 +264,24 @@ public final class MatchManager {
         final String name = chains.keySet().iterator().next();
         map = plugin.maps().get(name);
         chain = chains.get(name);
+
+        // 战场必须是独立世界：绝不退回主世界，否则会直接在别人的大厅里开打
         world = Bukkit.getWorld(map.world());
         if (world == null) {
-            world = plugin.getServer().getWorlds().getFirst();
+            broadcast("地图 " + name + " 的世界 " + map.world() + " 未加载，无法开局");
+            map = null;
+            chain = null;
+            phase = MatchPhase.WAITING;
+            return;
+        }
+        final World lobby = lobbyWorld();
+        if (!plugin.config().allowSameWorld() && lobby != null && lobby.equals(world)) {
+            broadcast("战场世界与大厅世界相同（" + world.getName()
+                    + "），拒绝开局。请让地图使用独立世界，或设 match.allow_same_world: true");
+            map = null;
+            chain = null;
+            phase = MatchPhase.WAITING;
+            return;
         }
 
         // 未选边者自动分到人少的一队（§7）
@@ -322,30 +374,27 @@ public final class MatchManager {
     }
 
     /**
-     * 位于**游戏区域**的玩家：大厅世界或战场世界。
+     * 已报名的在线玩家。
      *
-     * <p>这是「谁参与这一局」的唯一判据。跑到别的世界的人既不算人数，也不会被传送。
+     * <p>这是「谁参与这一局」的唯一判据 —— 与所在世界无关。没报名的人哪怕站在战场正中也不参与。
      */
-    private List<Player> activePlayers() {
-        final World lobby = lobbyWorld();
-        final World arena = arenaWorld();
+    private List<Player> queuedPlayers() {
         final List<Player> result = new ArrayList<>();
         for (Player player : Bukkit.getOnlinePlayers()) {
-            if (player.isDead() || player.getGameMode() == GameMode.SPECTATOR) {
-                continue;
-            }
-            final World w = player.getWorld();
-            if ((lobby != null && w.equals(lobby)) || (arena != null && w.equals(arena))) {
+            if (queue.contains(player.getUniqueId())) {
                 result.add(player);
             }
         }
         return result;
     }
 
-    /** 已分队的玩家（§5.2 的计数对象）。 */
+    /** 已分队且可计数的玩家（§5.2）。 */
     private List<Player> activeParticipants() {
         final List<Player> result = new ArrayList<>();
-        for (Player player : activePlayers()) {
+        for (Player player : queuedPlayers()) {
+            if (player.isDead() || player.getGameMode() == GameMode.SPECTATOR) {
+                continue;
+            }
             if (plugin.teamOf(player) != null) {
                 result.add(player);
             }
@@ -365,7 +414,7 @@ public final class MatchManager {
 
     private void autoAssign() {
         final List<Player> unassigned = new ArrayList<>();
-        for (Player player : activePlayers()) {
+        for (Player player : queuedPlayers()) {
             if (plugin.teamOf(player) == null) {
                 unassigned.add(player);
             }
@@ -494,7 +543,7 @@ public final class MatchManager {
     }
 
     private void broadcast(String message) {
-        activePlayers().forEach(p -> p.sendMessage("[战线] " + message));
+        queuedPlayers().forEach(p -> p.sendMessage("[战线] " + message));
         plugin.getLogger().info(message);
     }
 }

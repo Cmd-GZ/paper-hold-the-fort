@@ -42,6 +42,8 @@ public final class ConfigParser {
         final int minPlayers = asInt(match.get("min_players"), "match.min_players", base.minPlayers());
         final int teamLimit = asInt(match.get("team_limit"), "match.team_limit", base.teamLimit());
         final int respawn = asInt(match.get("respawn_seconds"), "match.respawn_seconds", base.respawnSeconds());
+        final boolean allowSameWorld = asBoolean(
+                match.get("allow_same_world"), "match.allow_same_world", base.allowSameWorld());
 
         final Map<?, ?> lobby = asMap(map.get("lobby"), "lobby", Map.of());
         final String lobbyWorld = lobby.get("world") == null
@@ -59,7 +61,8 @@ public final class ConfigParser {
                 teamLimit,
                 respawn,
                 lobbyWorld,
-                lobbyPos);
+                lobbyPos,
+                allowSameWorld);
     }
 
     private static Map<?, ?> asMap(Object raw, String where) {
@@ -84,6 +87,16 @@ public final class ConfigParser {
             return n.doubleValue();
         }
         throw new IllegalArgumentException(where + " 应当是数字，实际是 " + raw);
+    }
+
+    private static boolean asBoolean(Object raw, String where, boolean fallback) {
+        if (raw == null) {
+            return fallback;
+        }
+        if (raw instanceof Boolean b) {
+            return b;
+        }
+        throw new IllegalArgumentException(where + " 应当是 true/false，实际是 " + raw);
     }
 
     private static int asInt(Object raw, String where, int fallback) {
