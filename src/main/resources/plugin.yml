@@ -24,4 +24,7 @@ permissions:
 commands:
   htf:
     description: 战线模式调试命令
-    usage: /htf join red|blue | line <地图名> | build <地图名> | start | stop
+    usage: |
+      /htf join [red|blue] | /htf leave | /htf start | /htf stop
+      /htf setup [spawn red|blue | undo | start <编号> | done | cancel]
+      /htf build <地图名>   （在你所在的世界铺平整战场；控制台则铺在地图声明的世界）

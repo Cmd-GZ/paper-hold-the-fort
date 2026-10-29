@@ -101,7 +101,8 @@ Minecraft Java 版 **Paper** 服务端插件。两队（红 / 蓝）在一片战
 2. `/htf setup` 拿「战线标尺」：左键点一下、右键点一下 = 一帧，至少 3 帧；
    `/htf setup spawn red` / `/htf setup spawn blue` 记两边出生点；
    `/htf setup done` 落盘并热加载
-3. 场地还没铺的话，`/htf build <地图名>` 会在该地图的世界里铺一层平整地面（自己搭场地则不需要）
+3. 场地还没铺的话，`/htf build <地图名>` 会在**你当前所在的世界**里铺一层平整地面
+   （控制台执行时铺在地图声明的世界；自己搭场地则不需要）
 4. 玩家 `/htf join red`、`/htf join blue`；两队都有人报名后自动倒计时开局，
    单人测试可 `/htf start`
 

@@ -153,12 +153,22 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage("找不到地图 " + mapName);
             return true;
         }
-        // 世界由服务器或世界管理插件负责创建，本插件只往里铺场地
-        final World target = plugin.getServer().getWorld(map.world());
-        if (target == null) {
-            sender.sendMessage("世界 " + map.world() + " 不存在。"
-                    + "请先用服务器或世界管理插件创建它，本插件不会替你建世界。");
-            return true;
+        // 玩家执行 → 铺在**他所在的世界**；控制台执行 → 铺在地图声明的世界。
+        // 世界由服务器或世界管理插件负责创建，本插件不建世界。
+        final World target;
+        if (sender instanceof Player p) {
+            target = p.getWorld();
+            if (!target.getName().equals(map.world())) {
+                sender.sendMessage("§e注意：地图 " + mapName + " 声明的是世界 " + map.world()
+                        + "，这次铺在你所在的 " + target.getName() + " 里");
+            }
+        } else {
+            target = plugin.getServer().getWorld(map.world());
+            if (target == null) {
+                sender.sendMessage("世界 " + map.world() + " 不存在。"
+                        + "请先用服务器或世界管理插件创建它，本插件不会替你建世界。");
+                return true;
+            }
         }
         sender.sendMessage("正在生成战场，稍等…");
         final long start = System.currentTimeMillis();
