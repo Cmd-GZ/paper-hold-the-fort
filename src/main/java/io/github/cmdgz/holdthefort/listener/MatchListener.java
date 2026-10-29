@@ -55,8 +55,13 @@ public final class MatchListener implements Listener {
         event.setDroppedExp(0);
     }
 
-    /** 重生回本队出生点（§7）。 */
-    @EventHandler
+    /**
+     * 重生回本队出生点（§7）。
+     *
+     * <p>用 {@code HIGHEST} 优先级，确保不被其它插件的默认重生位置覆盖；
+     * 只设置**这一次**的重生点，不动玩家床铺或世界出生点。
+     */
+    @EventHandler(priority = EventPriority.HIGHEST)
     public void onRespawn(PlayerRespawnEvent event) {
         if (plugin.match() == null || plugin.match().phase() != MatchPhase.RUNNING) {
             return;
@@ -66,8 +71,8 @@ public final class MatchListener implements Listener {
         if (team == null) {
             return;
         }
-        final Location spawn = teamSpawn(team);
-        if (spawn != null) {
+        final Location spawn = plugin.match().teamSpawn(team);
+        if (spawn != null && spawn.getWorld() != null) {
             event.setRespawnLocation(spawn);
         }
         // 重生等待：先转观战，5 秒后再恢复（§7）
@@ -104,16 +109,4 @@ public final class MatchListener implements Listener {
         }
     }
 
-    private Location teamSpawn(Team team) {
-        final MapDefinition map = plugin.maps().values().stream().findFirst().orElse(null);
-        if (map == null) {
-            return null;
-        }
-        final Spawn spawn = team == Team.RED ? map.redSpawn() : map.blueSpawn();
-        final var world = plugin.getServer().getWorld(map.world());
-        if (world == null) {
-            return null;
-        }
-        return new Location(world, spawn.x(), spawn.y(), spawn.z());
-    }
 }

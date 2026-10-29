@@ -30,6 +30,12 @@ public final class DamageDebugListener implements Listener {
         if (!(event.getDamager() instanceof Player attacker)) {
             return;
         }
+        // 对局中一律输出（排查用）；非对局期只有开了 match.debug_damage 才输出
+        if (plugin.match() == null || plugin.match().phase() != io.github.cmdgz.holdthefort.game.MatchPhase.RUNNING) {
+            if (!plugin.config().debugDamage()) {
+                return;
+            }
+        }
         plugin.getLogger().info("[伤害调试] " + attacker.getName()
                 + "（" + plugin.teamOf(attacker) + "，游戏模式 " + attacker.getGameMode() + "）"
                 + " → " + victim.getName()

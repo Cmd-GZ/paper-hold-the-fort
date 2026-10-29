@@ -174,6 +174,7 @@ public final class MatchManager {
         if (team != null) {
             plugin.setTeam(player, team);
         }
+        plugin.hub().setWaiting(player);
         player.sendMessage(team == null
                 ? "已加入等待，开局时自动分到人少的一队"
                 : "已加入" + teamName(team) + "，当前 " + countTeam(team)
@@ -189,6 +190,7 @@ public final class MatchManager {
         }
         queue.remove(player.getUniqueId());
         plugin.forget(player);
+        plugin.hub().clear(player);
         player.sendMessage("已退出等待");
         return true;
     }
@@ -287,6 +289,7 @@ public final class MatchManager {
             final Player player = Bukkit.getPlayer(id);
             if (player != null) {
                 plugin.forget(player);
+                plugin.hub().clear(player);
             }
         }
         queue.clear();
@@ -435,6 +438,7 @@ public final class MatchManager {
         for (Player player : activeParticipants()) {
             preparePlayer(player);
             giveCompass(player);
+            plugin.hub().setPlaying(player);
         }
         compassCounter = 0;
 
@@ -653,6 +657,20 @@ public final class MatchManager {
             }
         }
         return result;
+    }
+
+    /**
+     * 当前对局中某队的出生点；不在对局中或地图缺失时返回 {@code null}。
+     *
+     * <p>只用于 {@link org.bukkit.event.player.PlayerRespawnEvent} 的单次重生位置，
+     * **不会**改动玩家床铺或世界出生点。
+     */
+    public Location teamSpawn(Team team) {
+        if (map == null || world == null) {
+            return null;
+        }
+        final Spawn spawn = team == Team.RED ? map.redSpawn() : map.blueSpawn();
+        return new Location(world, spawn.x(), spawn.y(), spawn.z());
     }
 
     private World lobbyWorld() {

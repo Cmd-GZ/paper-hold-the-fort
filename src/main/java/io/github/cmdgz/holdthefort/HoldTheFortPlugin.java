@@ -18,6 +18,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import io.github.cmdgz.holdthefort.command.HoldTheFortCommand;
+import io.github.cmdgz.holdthefort.compat.HubBridge;
 import io.github.cmdgz.holdthefort.command.SetupManager;
 import io.github.cmdgz.holdthefort.listener.DamageDebugListener;
 import io.github.cmdgz.holdthefort.listener.MatchListener;
@@ -52,6 +53,7 @@ public final class HoldTheFortPlugin extends JavaPlugin {
     private MatchManager matchManager;
     private SetupManager setupManager;
     private boolean warnedAboutLobby;
+    private HubBridge hub;
 
     @Override
     public void onEnable() {
@@ -63,15 +65,17 @@ public final class HoldTheFortPlugin extends JavaPlugin {
         loadMaps();
         registerCommands();
 
+        hub = new HubBridge(this);
+        if (hub.available()) {
+            getLogger().info("已检测到 HubCore，主城对接已启用（tab 状态、重生不回主城）");
+        }
         matchManager = new MatchManager(this);
         matchManager.start();
         setupManager = new SetupManager(this);
         getServer().getPluginManager().registerEvents(new MatchListener(this), this);
         getServer().getPluginManager().registerEvents(setupManager, this);
-        if (config.debugDamage()) {
-            getServer().getPluginManager().registerEvents(new DamageDebugListener(this), this);
-            getLogger().warning("已开启伤害调试日志（match.debug_damage: true）");
-        }
+        // 对局中默认输出玩家间伤害的最终判定，便于排查「打不掉血」
+        getServer().getPluginManager().registerEvents(new DamageDebugListener(this), this);
         if (maps.isEmpty()) {
             getLogger().info("还没有任何地图。OP 在战场世界里执行 /htf setup 即可现场做一张。");
         }
@@ -98,6 +102,10 @@ public final class HoldTheFortPlugin extends JavaPlugin {
 
     public PluginConfig config() {
         return config;
+    }
+
+    public HubBridge hub() {
+        return hub;
     }
 
     public MatchManager match() {
