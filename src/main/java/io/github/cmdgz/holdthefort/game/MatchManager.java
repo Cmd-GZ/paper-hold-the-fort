@@ -11,12 +11,17 @@ import java.util.UUID;
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.GameMode;
+import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.boss.BarColor;
 import org.bukkit.boss.BarStyle;
 import org.bukkit.boss.BossBar;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.CompassMeta;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.scoreboard.Criteria;
 import org.bukkit.scoreboard.DisplaySlot;
@@ -90,11 +95,20 @@ public final class MatchManager {
      */
     private final Set<UUID> queue = new HashSet<>();
 
+    /** 每名玩家手里那枚「战线罗盘」的标记，用来识别与回收（§7.1）。 */
+    private NamespacedKey compassKey;
+
+    /** 罗盘指向的刷新间隔：战线每秒只挪不到一格，用不着每 tick 刷。 */
+    private static final int COMPASS_INTERVAL = 20;
+
+    private int compassCounter;
+
     /** 上一 tick 每名玩家的区域，用来判断是否跨线（§4.3）。 */
     private final Map<UUID, Zone> lastZones = new HashMap<>();
 
     public MatchManager(HoldTheFortPlugin plugin) {
         this.plugin = plugin;
+        this.compassKey = new NamespacedKey(plugin, "frontline_compass");
     }
 
     /** 启动 tick 循环。 */
@@ -230,6 +244,10 @@ public final class MatchManager {
         final double before = progress.u();
         progress.tick(0.05, factor);
         final double delta = progress.u() - before;
+
+        if (compassCounter++ % COMPASS_INTERVAL == 0) {
+            updateCompasses();
+        }
 
         if (hudCounter++ % HUD_INTERVAL == 0) {
             final FrontlineSample sample = chain.sample(progress.u());
@@ -410,7 +428,9 @@ public final class MatchManager {
 
         for (Player player : activeParticipants()) {
             preparePlayer(player);
+            giveCompass(player);
         }
+        compassCounter = 0;
 
         phase = MatchPhase.RUNNING;
         hudCounter = 0;
@@ -434,6 +454,90 @@ public final class MatchManager {
             renderer = null;
         }
         clearHud();
+    }
+
+    /** 给玩家一枚指向战线中心的罗盘（§7.1）。只在有空槽时才给，不覆盖手上的物品。 */
+    private void giveCompass(Player player) {
+        if (findCompass(player) >= 0) {
+            return;
+        }
+        final int slot = firstEmptySlot(player);
+        if (slot < 0) {
+            return;
+        }
+        player.getInventory().setItem(slot, buildCompass());
+    }
+
+    /** 把罗盘指向当前的战线中心。 */
+    private void updateCompasses() {
+        if (chain == null || world == null || progress == null) {
+            return;
+        }
+        for (Player player : activeParticipants()) {
+            final int slot = findCompass(player);
+            if (slot < 0) {
+                giveCompass(player);
+                continue;
+            }
+            player.getInventory().setItem(slot, buildCompass());
+        }
+    }
+
+    private int firstEmptySlot(Player player) {
+        final var inventory = player.getInventory();
+        for (int slot = 0; slot < 36; slot++) {
+            final ItemStack stack = inventory.getItem(slot);
+            if (stack == null || stack.getType().isAir()) {
+                return slot;
+            }
+        }
+        return -1;
+    }
+
+    private ItemStack buildCompass() {
+        final FrontlineSample sample = chain.sample(progress.u());
+        final double x = sample.center().x();
+        final double z = sample.center().z();
+
+        final ItemStack compass = new ItemStack(Material.COMPASS);
+        final CompassMeta meta = (CompassMeta) compass.getItemMeta();
+        meta.setLodestoneTracked(false); // 不要求真的存在磁石方块
+        meta.setLodestone(new Location(world, x,
+                world.getHighestBlockYAt((int) Math.floor(x), (int) Math.floor(z)) + 1, z));
+        meta.displayName(net.kyori.adventure.text.Component.text("战线罗盘")
+                .color(net.kyori.adventure.text.format.NamedTextColor.AQUA)
+                .decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false));
+        meta.lore(List.of(net.kyori.adventure.text.Component
+                .text("指向战线中心").color(net.kyori.adventure.text.format.NamedTextColor.GRAY)));
+        meta.getPersistentDataContainer().set(compassKey, PersistentDataType.BYTE, (byte) 1);
+        compass.setItemMeta(meta);
+        return compass;
+    }
+
+    /** 找到玩家背包里那枚罗盘所在的槽位，没有返回 -1。 */
+    private int findCompass(Player player) {
+        final var inventory = player.getInventory();
+        for (int slot = 0; slot < inventory.getSize(); slot++) {
+            final ItemStack stack = inventory.getItem(slot);
+            if (stack == null || stack.getType() != Material.COMPASS || !stack.hasItemMeta()) {
+                continue;
+            }
+            if (stack.getItemMeta().getPersistentDataContainer()
+                    .has(compassKey, PersistentDataType.BYTE)) {
+                return slot;
+            }
+        }
+        return -1;
+    }
+
+    /** 收走所有人的罗盘。 */
+    private void removeCompasses() {
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            final int slot = findCompass(player);
+            if (slot >= 0) {
+                player.getInventory().setItem(slot, null);
+            }
+        }
     }
 
     private void cleanupMatch() {
@@ -610,6 +714,7 @@ public final class MatchManager {
     }
 
     private void clearHud() {
+        removeCompasses();
         if (tugBar != null) {
             tugBar.removeAll();
             tugBar = null;
