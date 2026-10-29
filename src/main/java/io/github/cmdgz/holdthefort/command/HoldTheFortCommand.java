@@ -144,7 +144,12 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
             if (!sb.isEmpty()) {
                 sb.append("§7，");
             }
-            sb.append(team == Team.RED ? "§c" : "§9").append(p.getName());
+            sb.append(team == Team.RED ? "§c" : "§9").append(p.getName())
+                    .append("§7[").append(p.getGameMode())
+                    .append(p.isInvulnerable() ? " 无敌" : "")
+                    .append(" 血").append(Math.round(p.getHealth()))
+                    .append(" 无伤tick").append(p.getNoDamageTicks())
+                    .append("]");
         }
         sender.sendMessage("§7已分队：" + (sb.isEmpty() ? "§f（无）" : sb.toString()));
     }
