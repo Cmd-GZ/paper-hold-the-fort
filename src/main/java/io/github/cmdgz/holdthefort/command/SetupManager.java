@@ -190,7 +190,10 @@ public final class SetupManager implements Listener {
         plugin.reloadMaps();
 
         player.sendMessage("§a地图已保存：" + file.getName() + "（" + session.frames().size()
-                + " 帧，世界 §f" + session.worldName() + "§a）");
+                + " 帧）");
+        player.sendMessage("§7  绑定世界：§f" + session.worldName()
+                + "§7（建场开始时你所在的：§f" + session.worldName()
+                + "§7；现在你在：§f" + player.getWorld().getName() + "§7）");
         player.sendMessage("§7现在可以用 §e/htf join red §7开始测试了");
         return true;
     }

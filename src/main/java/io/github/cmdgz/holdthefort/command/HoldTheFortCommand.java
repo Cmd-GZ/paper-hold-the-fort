@@ -156,8 +156,25 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
             player.sendMessage("§7删除：§e/htf map remove <地图名>");
             return true;
         }
+        if (args[1].equalsIgnoreCase("setworld")) {
+            if (!player.hasPermission("htf.setup")) {
+                player.sendMessage("§c没有权限");
+                return true;
+            }
+            if (args.length < 4) {
+                player.sendMessage("§c用法：/htf map setworld <地图名> <世界名>");
+                return true;
+            }
+            final String error = plugin.rebindMap(args[2], args[3]);
+            if (error == null) {
+                player.sendMessage("§a已把地图 " + args[2] + " 重新绑定到世界 " + args[3]);
+            } else {
+                player.sendMessage("§c" + error);
+            }
+            return true;
+        }
         if (!args[1].equalsIgnoreCase("remove")) {
-            player.sendMessage("§c用法：/htf map remove <地图名>");
+            player.sendMessage("§c用法：/htf map remove <地图名> | /htf map setworld <地图名> <世界名>");
             return true;
         }
         if (args.length < 3) {
@@ -379,7 +396,10 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
             return List.of("red", "blue");
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("map")) {
-            return List.of("remove");
+            return List.of("remove", "setworld");
+        }
+        if (args.length == 3 && args[0].equalsIgnoreCase("map")) {
+            return new ArrayList<>(plugin.maps().keySet());
         }
         if (args.length == 3 && args[0].equalsIgnoreCase("map")
                 && args[1].equalsIgnoreCase("remove")) {

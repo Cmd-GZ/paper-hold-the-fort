@@ -30,6 +30,7 @@ import io.github.cmdgz.holdthefort.map.MapDefinition;
 import io.github.cmdgz.holdthefort.map.MapParseException;
 import io.github.cmdgz.holdthefort.map.MapParser;
 import io.github.cmdgz.holdthefort.map.MapReport;
+import io.github.cmdgz.holdthefort.map.MapWriter;
 import io.github.cmdgz.holdthefort.map.MapValidator;
 
 /**
@@ -123,6 +124,36 @@ public final class HoldTheFortPlugin extends JavaPlugin {
             return first.getSpawnLocation();
         }
         return new Location(world, config.lobby().x(), config.lobby().y(), config.lobby().z());
+    }
+
+    /**
+     * 把已保存的地图重新绑定到另一个世界，并写回文件。
+     *
+     * <p>几何不变、只换世界 —— 用于建场时站错世界、或战场世界改名的情况。
+     *
+     * @return {@code null} 表示成功，否则是失败原因
+     */
+    public String rebindMap(String name, String newWorld) {
+        final MapDefinition old = maps.get(name);
+        if (old == null) {
+            return "没有这张地图：" + name;
+        }
+        final MapDefinition updated = new MapDefinition(
+                old.name(), newWorld, old.redSpawn(), old.blueSpawn(), old.turnLimit(),
+                old.speed(), old.epsilon(), old.startIndex(), old.checkpoints());
+        final MapValidator.Result result = MapValidator.validate(updated);
+        if (result.hasErrors()) {
+            return "校验失败：" + result.of(MapValidator.Severity.ERROR).getFirst().message();
+        }
+        final File file = new File(getDataFolder(), MAPS_DIR + "/" + name + ".yml");
+        try {
+            Files.writeString(file.toPath(), MapWriter.toYaml(updated), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            return "写文件失败：" + e.getMessage();
+        }
+        maps.put(name, updated);
+        chains.put(name, result.chain());
+        return null;
     }
 
     /** 删除一张已保存的地图（连同文件）。 */
