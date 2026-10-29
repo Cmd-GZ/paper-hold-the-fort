@@ -1,0 +1,17 @@
+name: river_crossing
+world: world
+
+spawns:
+  red:  { x: 0, y: 64, z: -100 }
+  blue: { x: 0, y: 64, z:  100 }
+
+frontline:
+  start_index: 2
+  speed: 0.6
+  turn_limit: 90
+  checkpoints:
+    - { p: { x: -160, z: -64 }, q: { x: 160, z: -64 } }
+    - { p: { x: -160, z: -32 }, q: { x: 160, z: -32 } }
+    - { p: { x: -160, z:   0 }, q: { x: 160, z:   0 } }
+    - { p: { x: -160, z:  32 }, q: { x: 160, z:  32 } }
+    - { p: { x: -160, z:  64 }, q: { x: 160, z:  64 } }
