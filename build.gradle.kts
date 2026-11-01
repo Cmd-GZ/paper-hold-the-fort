@@ -10,13 +10,11 @@ repositories {
     mavenCentral()
     // Paper API 与运行期依赖
     maven("https://repo.papermc.io/repository/maven-public/")
-    // 公共库 MiniGameLib 的本地仓库：主仓库的 tools/build.sh 会把 com.hub:minigame-lib
-    // install 到 <主仓库>/.server/m2repo，这里直接把它当仓库用 —— 离线也能构建。
-    // （本工程是 submodule 的 checkout，所以相对本工程往上找一级到主仓库的 .server/）
-    maven {
-        name = "localMiniGameLib"
-        url = uri(file("../.server/m2repo"))
-    }
+    // 公共库 MiniGameLib **随本仓库提供**：libs/minigame-lib-<版本>.jar
+    // 不用 <主仓库>/.server/m2repo —— 那个目录是主仓库 gitignore 的，
+    // 换机器 / 换工作目录 / IDE 的 Gradle 同步换个 cwd 就解析不到，
+    // 症状是 HubAPI / Worlds 全部标红（HoldTheFortPlugin 与 MatchManager 首当其冲）。
+    flatDir { dirs("libs") }
 }
 
 dependencies {
@@ -25,7 +23,8 @@ dependencies {
     // 公共库 MiniGameLib（与其它 23 个小游戏一致）：HubAPI 做主城对接、Worlds 解析世界 token。
     // compileOnly = Maven 的 provided —— 运行期由服务器 plugins/ 下的 MiniGameLib.jar 提供，
     // 由 plugin.yml 的 depend 保证加载顺序；不要打进本插件 jar。
-    compileOnly("com.hub:minigame-lib:1.7.3")
+    // 收进本仓库的 jar（见 libs/README.md）。升级 MiniGameLib 时同步替换这个文件与版本号。
+    compileOnly(files("libs/minigame-lib-1.7.3.jar"))
     // 地图与配置解析。运行期由 Paper 自带，等价于 paper-api 的传递依赖。
     compileOnly("org.yaml:snakeyaml:2.2")
     testImplementation("org.yaml:snakeyaml:2.2")
