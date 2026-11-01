@@ -29,6 +29,7 @@ import org.bukkit.scoreboard.Objective;
 import org.bukkit.scoreboard.Scoreboard;
 
 import com.hub.api.HubAPI;
+import com.hub.world.Worlds;
 
 import io.github.cmdgz.holdthefort.HoldTheFortPlugin;
 import io.github.cmdgz.holdthefort.frontline.FrontlineChain;
@@ -414,13 +415,15 @@ public final class MatchManager {
         }
         enableWorldPvp();
 
-        // 只比较**配置里的世界名**。此前是拿解析出来的 World 对象比较，
-        // 而大厅世界找不到时会退回「第一个加载的世界」，在多世界服上会误判成同一世界。
+        // 只比较**声明值**，不比解析出来的 World 对象：大厅世界找不到时 lobbyLocation() 会退回
+        // 「第一个加载的世界」，在多世界服上会误判成同一世界。
+        // 实际世界必须先转回 token（Worlds.tokenOf）：地图声明 tpl:x 时它是房间实例名 room_xxx，
+        // 直接拿它和配置里的大厅世界名比，永远不相等 —— 这个禁区就形同虚设。
         final String lobbyWorldName = plugin.config().lobbyWorld();
         if (!plugin.config().allowSameWorld()
                 && lobbyWorldName != null
                 && !lobbyWorldName.isBlank()
-                && world.getName().equals(lobbyWorldName)) {
+                && Worlds.tokenOf(world).equals(lobbyWorldName)) {
             failStart("地图 " + name + " 声明的世界（" + world.getName()
                     + "）就是配置里的大厅世界。请把地图建在大厅之外的世界，"
                     + "或改 config.yml 的 lobby.world");

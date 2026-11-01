@@ -134,10 +134,19 @@ public final class HoldTheFortPlugin extends JavaPlugin {
     }
 
     /**
-     * 地图声明的世界是否就是大厅世界（开局的硬性禁区）。
+     * 地图声明的世界是否就是大厅世界（开局的硬性禁区，§9.1「不回退世界」）。
      *
-     * <p>固定世界名走字符串比较，与改造前**完全一致**；只有 {@code tpl:} token 才会去解析
-     * 实际世界名来比 —— 这样"世界没加载时也能靠字符串认出大厅世界"的旧行为不会丢。
+     * <p>判定规则是**两边都转成世界 token 再比**（token 由 {@code com.hub.world.Worlds} 定义）：
+     * <ol>
+     *   <li>两个 token 字符串相等 → 是同一处世界。固定世界名（{@code world_htf}）走这条，
+     *       所以「世界没加载时也能靠字符串认出大厅世界」的旧行为原样保留；</li>
+     *   <li>写法不同（一边 {@code tpl:<模板键>}、一边固定世界名）才去解析实际世界，
+     *       把解析出来的世界**再转回 token** 比；解析不出来 = 无法判定 = 不是大厅世界
+     *       （这张图本来就会因为「世界未加载」被排除，不会因此被放行开局）。</li>
+     * </ol>
+     *
+     * <p>⚠️ 不要退回 {@code world.getName().equals(lobbyWorld)}：地图声明 {@code tpl:x} 时，
+     * 实际世界名是房间实例名（{@code room_xxx}），拿它和大厅世界名比永远不相等。
      */
     public boolean isLobbyWorld(MapDefinition map) {
         final String declared = map == null ? null : map.world();
@@ -145,14 +154,14 @@ public final class HoldTheFortPlugin extends JavaPlugin {
             return false;
         }
         final String lobbyWorld = config.lobbyWorld();
+        if (lobbyWorld == null || lobbyWorld.isBlank()) {
+            return false;
+        }
         if (declared.equals(lobbyWorld)) {
             return true;
         }
-        if (Worlds.isTemplateToken(declared)) {
-            final World world = Worlds.resolve(declared);
-            return world != null && world.getName().equals(lobbyWorld);
-        }
-        return false;
+        final World actual = Worlds.resolve(declared);
+        return actual != null && Worlds.tokenOf(actual).equals(lobbyWorld);
     }
 
     /** 重新读取 maps/ 目录（游戏内建场落盘后调用）。 */

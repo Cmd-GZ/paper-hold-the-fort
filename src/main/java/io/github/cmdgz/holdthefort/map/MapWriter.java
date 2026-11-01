@@ -16,7 +16,7 @@ public final class MapWriter {
         final StringBuilder sb = new StringBuilder();
         sb.append("# 由 /htf setup 在游戏内生成，可直接手动修改\n");
         sb.append("name: ").append(map.name()).append('\n');
-        sb.append("world: ").append(map.world()).append('\n');
+        sb.append("world: ").append(worldToken(map.world())).append('\n');
         sb.append('\n');
         sb.append("spawns:\n");
         sb.append("  red:  ").append(spawn(map.redSpawn())).append('\n');
@@ -37,6 +37,17 @@ public final class MapWriter {
                     .append(" } }\n");
         }
         return sb.toString();
+    }
+
+    /**
+     * {@code world:} 的值。
+     *
+     * <p>固定世界名（{@code world_htf}）照旧不加引号 —— 存量地图文件一个字节都不变；
+     * 带冒号的 token（{@code tpl:<模板键>}）加单引号，避免 YAML 把它当成别的东西，
+     * 也跟 {@code docs/design.md} §8.2 表格里的写法一致。
+     */
+    static String worldToken(String token) {
+        return token.indexOf(':') >= 0 ? "'" + token + "'" : token;
     }
 
     private static String spawn(Spawn spawn) {

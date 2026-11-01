@@ -91,7 +91,7 @@ class SetupSessionTest {
         session.setSpawn(false, 0, 64, 100);
 
         final MapDefinition map = new MapDefinition(
-                "world_htf", session.worldName(), session.redSpawn(), session.blueSpawn(),
+                "world_htf", session.worldToken(), session.redSpawn(), session.blueSpawn(),
                 TurnLimit.NINETY, 0.6, 1.0, session.resolvedStartIndex(), List.copyOf(session.frames()));
 
         final MapDefinition parsed = MapParser.parse(MapWriter.toYaml(map), Defaults.standard());
@@ -116,5 +116,30 @@ class SetupSessionTest {
                 "x", "world_htf", session.redSpawn(), session.blueSpawn(),
                 TurnLimit.NINETY, 0.6, 1.0, session.resolvedStartIndex(), List.copyOf(session.frames()));
         assertTrue(MapValidator.validate(map).hasErrors());
+    }
+
+    @Test
+    @DisplayName("在房间实例世界里建场：落盘的是 tpl:<模板键>，能原样读回来")
+    void templateTokenRoundTrips() {
+        // 建场开始时 SetupManager 传的是 Worlds.tokenOf(世界)：房间实例世界 → tpl:<模板键>
+        final SetupSession session = new SetupSession("tpl:htf_test");
+        assertEquals("tpl:htf_test", session.worldToken(), "绑定的必须是 token，不能是房间实例名");
+        session.recordPoint(new Vec2(-160, -32));
+        session.recordPoint(new Vec2(160, -32));
+        session.recordPoint(new Vec2(-160, 0));
+        session.recordPoint(new Vec2(160, 0));
+        session.recordPoint(new Vec2(-160, 32));
+        session.recordPoint(new Vec2(160, 32));
+        session.setSpawn(true, 0, 64, -100);
+        session.setSpawn(false, 0, 64, 100);
+
+        final MapDefinition map = new MapDefinition(
+                "tpl_htf_test", session.worldToken(), session.redSpawn(), session.blueSpawn(),
+                TurnLimit.NINETY, 0.6, 1.0, session.resolvedStartIndex(), List.copyOf(session.frames()));
+
+        final MapDefinition parsed = MapParser.parse(MapWriter.toYaml(map), Defaults.standard());
+        assertEquals("tpl:htf_test", parsed.world(), "房间名（room_xxx）绝不能写进配置");
+        final MapValidator.Result result = MapValidator.validate(parsed);
+        assertFalse(result.hasErrors(), "tpl: 场地不应有 L 级问题：" + result.problems());
     }
 }

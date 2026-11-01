@@ -14,7 +14,22 @@ import io.github.cmdgz.holdthefort.map.Spawn;
  */
 public final class SetupSession {
 
-    private final String worldName;
+    /**
+     * 建场绑定的**世界 token**（不是裸世界名）。
+     *
+     * <p>它有两个用途，必须是**同一个值**——"写进配置的"和"运行期比对的"一旦分家，
+     * 换个世界名就会静默改掉比较结果：
+     * <ol>
+     *   <li>落盘时原样写进地图文件的 {@code world:}（见 {@code MapWriter}）；</li>
+     *   <li>{@code /htf setup} 自己的运行期比对（点到的方块在不在本世界、本世界是不是大厅世界），
+     *       一律「两边都转成 token 再比」：{@code Worlds.tokenOf(实际世界).equals(worldToken())}。</li>
+     * </ol>
+     *
+     * <p>所以入参用 {@code Worlds.tokenOf(world)}：固定世界得到世界名（旧配置一个字节不变），
+     * 房间实例世界得到 {@code tpl:<模板键>}（房间删了配置也不会失效）。
+     */
+    private final String worldToken;
+
     private final List<CheckpointPair> frames = new ArrayList<>();
 
     /** 已点到、还没配上对的第一个点。 */
@@ -24,12 +39,13 @@ public final class SetupSession {
     private Spawn blueSpawn;
     private int startIndex = -1;
 
-    public SetupSession(String worldName) {
-        this.worldName = worldName;
+    public SetupSession(String worldToken) {
+        this.worldToken = worldToken;
     }
 
-    public String worldName() {
-        return worldName;
+    /** 建场绑定的世界 token：固定世界名（{@code world_htf}）或模板作用域（{@code tpl:<模板键>}）。 */
+    public String worldToken() {
+        return worldToken;
     }
 
     /** 记录一个检查点。成对时返回刚组成的那一帧，否则返回 {@code null}。 */

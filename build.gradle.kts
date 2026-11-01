@@ -4,7 +4,9 @@ plugins {
 }
 
 group = "io.github.cmdgz"
-version = "0.1.0"
+// 版本唯一来源：`plugin.yml` 里写的是 ${version}，由 processResources 展开，两者不会不一致。
+// 0.2.0 = 坐标解耦写入侧（/htf setup 在房间实例世界里落盘 tpl:<模板键>）。
+version = "0.2.0"
 
 repositories {
     mavenCentral()

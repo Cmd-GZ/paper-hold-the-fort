@@ -11,6 +11,7 @@ import java.util.UUID;
 
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -19,6 +20,8 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
+
+import com.hub.world.Worlds;
 
 import io.github.cmdgz.holdthefort.HoldTheFortPlugin;
 import io.github.cmdgz.holdthefort.frontline.Vec2;
@@ -48,7 +51,8 @@ public final class SetupManager implements Listener {
 
     /** 开始（或重来）建场：发一根标尺木棍。 */
     public void begin(Player player) {
-        final SetupSession session = new SetupSession(player.getWorld().getName());
+        // 存 token 而不是裸世界名：房间实例世界里建场要落盘成 tpl:<模板键>（房间删了也不失效）
+        final SetupSession session = new SetupSession(Worlds.tokenOf(player.getWorld()));
         sessions.put(player.getUniqueId(), session);
 
         final ItemStack wand = new ItemStack(Material.STICK);
@@ -65,7 +69,7 @@ public final class SetupManager implements Listener {
         wand.setItemMeta(meta);
         player.getInventory().addItem(wand);
 
-        player.sendMessage("§6[建场] §f已开始，世界：§e" + session.worldName());
+        player.sendMessage("§6[建场] §f已开始，世界：§e" + describeWorld(session.worldToken()));
         player.sendMessage("§7用左键/右键各点一下方块 = 记一帧，至少 3 帧。");
         player.sendMessage("§7然后：§e/htf setup spawn red§7、§e/htf setup spawn blue§7，最后 §e/htf setup done");
     }
@@ -106,7 +110,7 @@ public final class SetupManager implements Listener {
         final var target = player.getTargetBlockExact(100);
         final int bx;
         final int bz;
-        if (target != null && target.getWorld().getName().equals(session.worldName())) {
+        if (target != null && sameWorld(target.getWorld(), session.worldToken())) {
             bx = target.getX();
             bz = target.getZ();
         } else {
@@ -178,17 +182,17 @@ public final class SetupManager implements Listener {
 
         final var lobby = plugin.lobbyLocation();
         if (!plugin.config().allowSameWorld() && lobby != null
-                && lobby.getWorld().getName().equals(session.worldName())) {
-            player.sendMessage("§c你现在站在大厅世界（" + session.worldName() + "）里建场。");
+                && sameWorld(lobby.getWorld(), session.worldToken())) {
+            player.sendMessage("§c你现在站在大厅世界（" + describeWorld(session.worldToken()) + "）里建场。");
             player.sendMessage("§7战场必须在大厅之外的世界。用 /gw tp <战场世界> 之类的方式过去再来。");
             return true;
         }
 
-        final String name = session.worldName().toLowerCase().replaceAll("[^a-z0-9_-]", "_");
+        final String name = session.worldToken().toLowerCase().replaceAll("[^a-z0-9_-]", "_");
         final Defaults defaults = plugin.config().defaults();
         final MapDefinition map = new MapDefinition(
                 name,
-                session.worldName(),
+                session.worldToken(),
                 session.redSpawn(),
                 session.blueSpawn(),
                 TurnLimit.NINETY,
@@ -222,9 +226,8 @@ public final class SetupManager implements Listener {
 
         player.sendMessage("§a地图已保存：" + file.getName() + "（" + session.frames().size()
                 + " 帧）");
-        player.sendMessage("§7  绑定世界：§f" + session.worldName()
-                + "§7（建场开始时你所在的：§f" + session.worldName()
-                + "§7；现在你在：§f" + player.getWorld().getName() + "§7）");
+        player.sendMessage("§7  绑定世界：§f" + describeWorld(session.worldToken())
+                + "§7（现在你在：§f" + player.getWorld().getName() + "§7）");
         player.sendMessage("§7现在可以用 §e/htf join red §7开始测试了");
         return true;
     }
@@ -235,6 +238,34 @@ public final class SetupManager implements Listener {
         takeBackWand(player);
         player.sendMessage("§7已放弃本次建场");
         return true;
+    }
+
+    // ------------------------------------------------------- 世界 token 比对
+
+    /**
+     * 实际世界是不是就是建场时声明的那个世界。
+     *
+     * <p>**两边都先转成 token 再比**：{@code Worlds.tokenOf(actual).equals(declaredToken)}。
+     * 不能拿 {@code actual.getName()} 直接和声明值比 —— 声明值可能是 {@code tpl:<模板键>}，
+     * 而房间实例世界的名字是 {@code room_xxx}，两者永远不相等。
+     *
+     * <p>固定世界名走的是同一条路径（{@code tokenOf} 对普通世界就是 {@code getName()}），
+     * 所以旧配置的比较结果与改造前逐字一致；而且 {@code tokenOf} 只是字符串映射，
+     * **不要求世界处于加载状态**（保存了也能比，不再依赖 Bukkit 世界对象）。
+     */
+    private static boolean sameWorld(World actual, String declaredToken) {
+        return actual != null && Worlds.tokenOf(actual).equals(declaredToken);
+    }
+
+    /** 给人看的世界说明：固定世界就是世界名；房间实例世界补一句"当前实例是哪个世界"。 */
+    private static String describeWorld(String token) {
+        if (!Worlds.isTemplateToken(token)) {
+            return token;
+        }
+        final World actual = Worlds.resolve(token);
+        return actual == null
+                ? token + "（该模板当前没有存活房间）"
+                : token + "（当前实例 " + actual.getName() + "）";
     }
 
     /** 把标尺木棍从背包里收掉，免得玩家带着一根没用的棍子。 */
@@ -277,7 +308,7 @@ public final class SetupManager implements Listener {
         if (event.getClickedBlock() == null) {
             return;
         }
-        if (!event.getClickedBlock().getWorld().getName().equals(session.worldName())) {
+        if (!sameWorld(event.getClickedBlock().getWorld(), session.worldToken())) {
             player.sendMessage("§c请一直在同一个世界里建场");
             return;
         }
