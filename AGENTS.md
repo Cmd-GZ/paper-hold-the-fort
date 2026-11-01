@@ -89,8 +89,11 @@ cd ../.server/tools && curl -sSL -o gradle.zip \
 cd ../../paper-hold-the-fort
 GRADLE_USER_HOME=$PWD/../.server/gradle-home JAVA_HOME=/usr/lib/jvm/java-25-openjdk \
   ../.server/tools/gradle-9.8.2/bin/gradle --no-daemon -Dorg.gradle.native=false build -x test
-# 产物：build/libs/paper-hold-the-fort-0.1.0.jar
+# 产物：build/libs/paper-hold-the-fort-<版本>.jar（当前 0.2.0）
 ```
+
+版本号只有一个来源：`build.gradle.kts` 的 `version`；`plugin.yml` 写的是 `${version}`，
+由 `processResources` 展开 —— 两边不会不一致，bump 只改 `build.gradle.kts` 一处。
 
 **MiniGameLib 依赖从本地 Maven 仓库取，不联网**：
 
@@ -122,20 +125,52 @@ GRADLE_USER_HOME=$PWD/../.server/gradle-home JAVA_HOME=/usr/lib/jvm/java-25-open
   - `onEnable` 用 `HubAPI.isReady()` 打一行 info / warning，让"主城没就绪"可见（R3）。
   - 游戏标识**仍然传 `plugin.getName()`**（= `HoldTheFort`）：`HubCore/GameRegistry`
     按插件名登记，改成别的名字 tab 状态就查不到。
-- **R2 坐标解耦：读取侧已接 `com.hub.world.Worlds`。**
+- **R2 坐标解耦：读 + 写两侧都已接 `com.hub.world.Worlds`。**
   - `HoldTheFortPlugin#resolveWorld(token)` 是唯一解析入口（内部是 `Worlds.resolve`）：
     固定世界名（旧配置，行为不变）与 `tpl:<模板键>` 都认。
     原来的 `Bukkit.getWorld(map.world())` / `Bukkit.getWorld(config.lobbyWorld())` 全都换成了它。
-  - `HoldTheFortPlugin#isLobbyWorld(map)` 负责"这图是不是开在大厅世界"：
-    固定世界名走**字符串比较**（与改造前逐字一致 —— 世界没加载时也认得出大厅世界，
-    这是当初 `startMatch` 里特意保留的行为）；只有 `tpl:` token 才去解析实际世界名再比。
-  - **写入侧仍写世界名**（`MapWriter` / `SetupSession`），固定世界一个字节都没变。
-    房间世界里 `/htf setup done` 会写房间实例名而不是 `tpl:`：**已知限制**，因为
-    `SetupSession#worldName` 同时被 3 处运行期世界比对使用，换 token 会静默改掉那些比较。
-    HTF 真的房间化时，按 `docs/坐标解耦清单.md` §6.3 让保存走
-    `Worlds.encode(Location)`（磁盘写 `'tpl:模板,x,y,z,yaw,pitch'` 字符串）。
+  - **写入侧（`/htf setup done`）写的是 token，不是世界名。**
+    `SetupManager#begin` 用 `Worlds.tokenOf(player.getWorld())` 建 `SetupSession`，
+    落盘时把这个 token 原样写进地图文件的 `world:`（`MapWriter`）。
+    - 固定世界 → token 就是世界名，**存量地图文件一个字节不变**（不加引号也是刻意的，零 diff）；
+    - 房间实例世界 → token 是 `tpl:<模板键>`，**绝不写会消失的 `room_xxx`**；
+    - `tpl:` 带冒号，`MapWriter#worldToken` 写成 `world: 'tpl:<模板键>'`（与 `docs/design.md` §8.2 一致）。
+    - 地图**名字**也取自 token（安全化：`tpl:htf_test` → `maps/tpl_htf_test.yml`）：
+      固定世界仍是 `<世界名>.yml`（不变），同一模板重复建场会覆盖同一份文件。
+  - **`SetupSession` 的字段叫 `worldToken()`（原 `worldName()`），一个值两用且必须同源**：
+    ① 落盘写进 `world:`；② `/htf setup` 自己的运行期比对。两者分家就会静默改掉比较结果
+    —— 上一轮"写入侧只能写世界名"的限制正是这么来的。
+  - **运行期世界比对一律「两边都转 token」**：`Worlds.tokenOf(实际世界).equals(声明值)`。
+    **不能**写 `world.getName().equals(声明值)`：声明值是 `tpl:x`、实际世界名是 `room_xxx`，
+    永远不相等。共 5 处（前 3 处就是上一轮说的"3 处运行期比对"，都在 `/htf setup` 流程里）：
+
+    | 位置 | 语义 | 怎么比 |
+    | --- | --- | --- |
+    | `SetupManager#recordTargetPoint` | 玩家正看着的方块在不在建场世界 | `tokenOf(target.getWorld()).equals(worldToken())` |
+    | `SetupManager#onInteract` | 木棍点的方块在不在建场世界 | `tokenOf(clicked.getWorld()).equals(worldToken())` |
+    | `SetupManager#done` | 建场世界是不是大厅世界 | `tokenOf(lobby.getWorld()).equals(worldToken())` |
+    | `MatchManager#startMatch` | 这张图是不是开在大厅世界（开局硬禁区） | `tokenOf(world).equals(config.lobbyWorld())` |
+    | `HoldTheFortPlugin#isLobbyWorld` | 选图过滤 / `status` / 加载告警用同一判据 | 见下 |
+
+    两处都比"声明值"，**不比解析出来的 World 对象**：`lobbyLocation()` 在大厅世界找不到时会
+    退回「第一个加载的世界」，在多世界服上会误判成同一世界（上一轮已修的坑，别再回去）。
+  - **`isLobbyWorld(map)` 的语义**（改它之前先把这里读完）：
+    1. `config.lobby.world` 为 `null`/空白 → `false`（大厅没配就谈不上"开在大厅里"）；
+    2. `map.world()` 与 `lobby.world` **字符串相等** → `true`。固定世界名走这条，
+       所以「**世界没加载时也能靠字符串认出大厅世界**」的旧行为原样保留
+       —— token 相等不需要世界在线，这也是当初 `startMatch` 特意保留的行为；
+    3. 否则解析 `map.world()`：解析不出来 → `false`（这张图本来就因为"世界未加载"被排除，
+       不会因此被放行开局）；解析出来 → `Worlds.tokenOf(实际世界).equals(lobby.world)`。
+    固定世界的判定结果与改造前**逐字一致**（`tokenOf(世界)` 对普通世界就是 `getName()`）。
   - `tpl:` 解析不出来（模板没有存活房间）一律按"场地未就绪"：选图时跳过 +
     `status` 显示"（世界未加载）"，**绝不退回大厅世界**（与 §9.1「不回退世界」一致）。
+  - **还剩的限制**（都不影响固定世界，也不影响"在房间世界里建场"这件事本身）：
+    - 房间的生命周期归主城管（`hub room`）：本插件不建房间、不预热、不回收；
+      房间里建好的图在"该模板没有存活房间"时就是 `status` 里的"（世界未加载）"。
+    - 建场会话在内存里：房间被删后老会话比不上了，点方块会提示"请一直在同一个世界里建场"，
+      重新 `/htf setup` 即可（不会写坏任何文件）。
+    - 地图名/文件名取自 token，所以同一模板的第二次建场会**覆盖**上一张图；
+      要在同一模板里放两张不同几何的图，得手动改 `name:`/文件名（`world:` 保持同一个 `tpl:`）。
 - **两个 `EventPriority.HIGHEST` 都不是空操作**，别当成历史 workaround 删掉：
   - `MatchListener#onPvpAllow`：放行不同队伍的互伤（SkyPit 已修成只在自己世界取消，
     这个放行现在理论上多余，但删掉需要重新验证门牙/高地两队的实际伤害链路）
