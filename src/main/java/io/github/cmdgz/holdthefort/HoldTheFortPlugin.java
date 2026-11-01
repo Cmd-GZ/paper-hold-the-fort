@@ -11,14 +11,16 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Stream;
 
-import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import com.hub.api.HubAPI;
+import com.hub.world.Worlds;
+
 import io.github.cmdgz.holdthefort.command.HoldTheFortCommand;
-import io.github.cmdgz.holdthefort.compat.HubBridge;
 import io.github.cmdgz.holdthefort.command.SetupManager;
 import io.github.cmdgz.holdthefort.listener.DamageDebugListener;
 import io.github.cmdgz.holdthefort.listener.MatchListener;
@@ -53,7 +55,6 @@ public final class HoldTheFortPlugin extends JavaPlugin {
     private MatchManager matchManager;
     private SetupManager setupManager;
     private boolean warnedAboutLobby;
-    private HubBridge hub;
 
     @Override
     public void onEnable() {
@@ -65,9 +66,12 @@ public final class HoldTheFortPlugin extends JavaPlugin {
         loadMaps();
         registerCommands();
 
-        hub = new HubBridge(this);
-        if (hub.available()) {
-            getLogger().info("已检测到 HubCore，主城对接已启用（tab 状态、重生不回主城）");
+        // 主城对接：直接走 MiniGameLib 的 HubAPI（plugin.yml 已 depend MiniGameLib + HubCore）。
+        // HubAPI 内部在 service == null 时是空操作，所以"主城没就绪"的降级行为与改造前一致。
+        if (HubAPI.isReady()) {
+            getLogger().info("已连上主城（HubAPI），主城对接已启用（tab 状态、重生不回主城）");
+        } else {
+            getLogger().warning("HubAPI 未就绪：tab 状态与「重生不回主城」暂时不会生效");
         }
         matchManager = new MatchManager(this);
         matchManager.start();
@@ -104,16 +108,51 @@ public final class HoldTheFortPlugin extends JavaPlugin {
         return config;
     }
 
-    public HubBridge hub() {
-        return hub;
-    }
-
     public MatchManager match() {
         return matchManager;
     }
 
     public SetupManager setup() {
         return setupManager;
+    }
+
+    /**
+     * 世界 token → {@link World}（R2 坐标解耦的唯一解析入口）。
+     *
+     * <p>两种 token 都认：
+     * <ul>
+     *   <li>{@code world_htf} —— 固定世界名，旧配置写法，行为与改造前完全相同；</li>
+     *   <li>{@code tpl:<模板键>} —— 模板作用域，由 MiniGameLib 解析成该模板当前房间实例的世界
+     *       （HTF 还没有房间化，所以现在解析不出来是正常的）。</li>
+     * </ul>
+     *
+     * <p>⚠️ 解析不出来（世界没加载 / 模板没有存活房间）一律返回 {@code null}，
+     * 调用方必须按"场地未就绪"处理 —— 绝不能退化到别的世界（尤其不能退回大厅世界）。
+     */
+    public World resolveWorld(String token) {
+        return Worlds.resolve(token);
+    }
+
+    /**
+     * 地图声明的世界是否就是大厅世界（开局的硬性禁区）。
+     *
+     * <p>固定世界名走字符串比较，与改造前**完全一致**；只有 {@code tpl:} token 才会去解析
+     * 实际世界名来比 —— 这样"世界没加载时也能靠字符串认出大厅世界"的旧行为不会丢。
+     */
+    public boolean isLobbyWorld(MapDefinition map) {
+        final String declared = map == null ? null : map.world();
+        if (declared == null) {
+            return false;
+        }
+        final String lobbyWorld = config.lobbyWorld();
+        if (declared.equals(lobbyWorld)) {
+            return true;
+        }
+        if (Worlds.isTemplateToken(declared)) {
+            final World world = Worlds.resolve(declared);
+            return world != null && world.getName().equals(lobbyWorld);
+        }
+        return false;
     }
 
     /** 重新读取 maps/ 目录（游戏内建场落盘后调用）。 */
@@ -125,7 +164,7 @@ public final class HoldTheFortPlugin extends JavaPlugin {
 
     /** 大厅传送点；配置的世界不存在时退回主世界出生点。 */
     public Location lobbyLocation() {
-        final var world = Bukkit.getWorld(config.lobbyWorld());
+        final var world = resolveWorld(config.lobbyWorld());
         if (world == null) {
             final var first = getServer().getWorlds().getFirst();
             if (!warnedAboutLobby) {
@@ -261,11 +300,11 @@ public final class HoldTheFortPlugin extends JavaPlugin {
         MapReport.describe(map, result.chain())
                 .forEach(line -> getLogger().info("[" + map.name() + "] " + line));
 
-        if (map.world().equals(config.lobbyWorld())) {
+        if (isLobbyWorld(map)) {
             getLogger().warning("地图 " + map.name() + " 声明的世界（" + map.world()
                     + "）就是大厅世界，这张图无法开局。请在大厅之外的世界用 /htf setup 重建，"
                     + "或用 /htf map setworld " + map.name() + " <战场世界> 改绑定");
-        } else if (Bukkit.getWorld(map.world()) == null) {
+        } else if (resolveWorld(map.world()) == null) {
             getLogger().warning("地图 " + map.name() + " 声明的世界（" + map.world()
                     + "）当前未加载，开局前请先加载它");
         }

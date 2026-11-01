@@ -5,9 +5,11 @@ description: 战线模式 —— 两队围绕一条横贯战场的战线对抗
 authors: [Cmd-GZ]
 api-version: '26.2'
 
-# 主城（HubCore）靠这两行在菜单与 tab 里登记本游戏；没装 HubCore 时它们不起作用。
-# 用 softdepend 而不是 depend，保证本插件也能独立运行在只有 Paper 的服务器上。
-softdepend: [MiniGameLib, HubCore, GameWorlds]
+# 与其它 23 个小游戏一致：编译期 provided 依赖 MiniGameLib，运行期硬依赖 MiniGameLib + HubCore。
+# HubAPI（主城对接：tab 状态、重生不回主城）与 Worlds（世界 token）都在 MiniGameLib 里，
+# 所以这两个依赖不再是"可选"。GameWorlds 只是加载顺序用，保持 softdepend。
+depend: [MiniGameLib, HubCore]
+softdepend: [GameWorlds]
 minigame-game: true
 minigame:
   name: 战线模式

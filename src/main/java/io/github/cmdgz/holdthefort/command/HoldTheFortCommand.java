@@ -157,7 +157,7 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
     private boolean showStatusConsole(org.bukkit.command.CommandSender sender) {
         sender.sendMessage("—— 战线模式状态 ——");
         sender.sendMessage("配置的大厅世界：" + plugin.config().lobbyWorld()
-                + (Bukkit.getWorld(plugin.config().lobbyWorld()) == null ? "（未加载！）" : ""));
+                + (plugin.resolveWorld(plugin.config().lobbyWorld()) == null ? "（未加载！）" : ""));
         sender.sendMessage("当前阶段：" + plugin.match().phase());
         if (plugin.maps().isEmpty()) {
             sender.sendMessage("地图：还没有");
@@ -165,8 +165,8 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage("地图：");
             plugin.maps().forEach((name, map) -> sender.sendMessage(" - " + name + " → 世界 "
                     + map.world()
-                    + (Bukkit.getWorld(map.world()) == null ? "（世界未加载）" : "")
-                    + (map.world().equals(plugin.config().lobbyWorld()) ? "  ← 就是大厅世界，开不了局" : "")));
+                    + (plugin.resolveWorld(map.world()) == null ? "（世界未加载）" : "")
+                    + (plugin.isLobbyWorld(map) ? "  ← 就是大厅世界，开不了局" : "")));
         }
         return true;
     }
@@ -213,7 +213,7 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
         player.sendMessage("§7地图：");
             plugin.maps().forEach((name, map) -> player.sendMessage(
                     "§7 - §e" + name + " §7→ 世界 §f" + map.world()
-                            + (map.world().equals(plugin.config().lobbyWorld())
+                            + (plugin.isLobbyWorld(map)
                                     ? " §c（就是大厅世界，开不了局）" : "")));
         }
         return true;
@@ -308,12 +308,13 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
         final World target;
         if (sender instanceof Player p) {
             target = p.getWorld();
-            if (!target.getName().equals(map.world())) {
+            // 与"地图声明的世界"比较：token 先解析（固定世界名解析出来就是同一个 World 实例）
+            if (plugin.resolveWorld(map.world()) != target) {
                 sender.sendMessage("§e注意：地图 " + mapName + " 声明的是世界 " + map.world()
                         + "，这次铺在你所在的 " + target.getName() + " 里");
             }
         } else {
-            target = plugin.getServer().getWorld(map.world());
+            target = plugin.resolveWorld(map.world());
             if (target == null) {
                 sender.sendMessage("世界 " + map.world() + " 不存在。"
                         + "请先用服务器或世界管理插件创建它，本插件不会替你建世界。");

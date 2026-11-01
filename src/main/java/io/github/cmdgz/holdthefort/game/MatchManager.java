@@ -28,6 +28,8 @@ import org.bukkit.scoreboard.DisplaySlot;
 import org.bukkit.scoreboard.Objective;
 import org.bukkit.scoreboard.Scoreboard;
 
+import com.hub.api.HubAPI;
+
 import io.github.cmdgz.holdthefort.HoldTheFortPlugin;
 import io.github.cmdgz.holdthefort.frontline.FrontlineChain;
 import io.github.cmdgz.holdthefort.frontline.FrontlineSample;
@@ -174,7 +176,9 @@ public final class MatchManager {
         if (team != null) {
             plugin.setTeam(player, team);
         }
-        plugin.hub().setWaiting(player);
+        // 主城（HubCore）通过 HubAPI 决定玩家算不算"在大厅"：
+        // isInLobby(uuid) == gameMap.get(id) == null。不登记的话玩家一重生就会被拉回主城。
+        HubAPI.setGame(player.getUniqueId(), plugin.getName());
         player.sendMessage(team == null
                 ? "已加入等待，开局时自动分到人少的一队"
                 : "已加入" + teamName(team) + "，当前 " + countTeam(team)
@@ -190,7 +194,7 @@ public final class MatchManager {
         }
         queue.remove(player.getUniqueId());
         plugin.forget(player);
-        plugin.hub().clear(player);
+        HubAPI.clearGame(player.getUniqueId());
         player.sendMessage("已退出等待");
         return true;
     }
@@ -289,7 +293,7 @@ public final class MatchManager {
             final Player player = Bukkit.getPlayer(id);
             if (player != null) {
                 plugin.forget(player);
-                plugin.hub().clear(player);
+                HubAPI.clearGame(player.getUniqueId());
             }
         }
         queue.clear();
@@ -333,14 +337,13 @@ public final class MatchManager {
 
     /** 找一张世界已加载、且不与大厅世界相同的地图。 */
     private String pickPlayableMap() {
-        final String lobbyName = plugin.config().lobbyWorld();
         for (String candidate : plugin.maps().keySet()) {
             final MapDefinition candidateMap = plugin.maps().get(candidate);
-            if (Bukkit.getWorld(candidateMap.world()) == null) {
+            // 世界 token 解析不出来 = 场地未就绪（世界没加载 / 模板没有存活房间），跳过
+            if (plugin.resolveWorld(candidateMap.world()) == null) {
                 continue;
             }
-            if (!plugin.config().allowSameWorld()
-                    && candidateMap.world().equals(lobbyName)) {
+            if (!plugin.config().allowSameWorld() && plugin.isLobbyWorld(candidateMap)) {
                 continue;
             }
             return candidate;
@@ -355,10 +358,9 @@ public final class MatchManager {
         final StringBuilder sb = new StringBuilder("现有地图：");
         plugin.maps().forEach((name, m) -> {
             sb.append(name).append("→世界 ").append(m.world());
-            if (Bukkit.getWorld(m.world()) == null) {
+            if (plugin.resolveWorld(m.world()) == null) {
                 sb.append("（未加载）");
-            } else if (!plugin.config().allowSameWorld()
-                    && m.world().equals(plugin.config().lobbyWorld())) {
+            } else if (!plugin.config().allowSameWorld() && plugin.isLobbyWorld(m)) {
                 sb.append("（就是大厅世界）");
             }
             sb.append("；");
@@ -400,7 +402,7 @@ public final class MatchManager {
         chain = chains.get(name);
 
         // 战场必须是独立世界：绝不退回主世界，否则会直接在别人的大厅里开打
-        world = Bukkit.getWorld(map.world());
+        world = plugin.resolveWorld(map.world());
         if (world == null) {
             failStart("地图 " + name + " 的世界 " + map.world()
                     + " 未加载。请先创建该世界，或在游戏内执行 /htf setup 重新指定场地。");
@@ -438,7 +440,7 @@ public final class MatchManager {
         for (Player player : activeParticipants()) {
             preparePlayer(player);
             giveCompass(player);
-            plugin.hub().setPlaying(player);
+            HubAPI.setPlaying(player.getUniqueId(), plugin.getName());
         }
         compassCounter = 0;
 
@@ -685,7 +687,7 @@ public final class MatchManager {
 
     private World arenaWorld() {
         final MapDefinition first = plugin.maps().values().stream().findFirst().orElse(null);
-        return first == null ? null : Bukkit.getWorld(first.world());
+        return first == null ? null : plugin.resolveWorld(first.world());
     }
 
     private void autoAssign() {
