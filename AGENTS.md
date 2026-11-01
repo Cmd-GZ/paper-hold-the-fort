@@ -71,3 +71,31 @@ Minecraft Java 版 **Paper** 服务端插件，实现一个叫「战线模式」
 - ❌ 不要在数学层里引用 Bukkit 类型
 - ❌ 不要手写 `gradle-wrapper.jar` 或改动 `gradle/wrapper/gradle-wrapper.properties` 的版本而不说明原因
 - ❌ 不要擅自升级 Paper / Minecraft 版本（会影响 Java 版本要求与 API 可用性）
+
+## 构建（重构期，Linux）
+
+本仓库用 **Gradle**（不是 Maven）。wrapper 需要联网下载发行版，本机曾因此失败，
+改用预装方式可离线：
+
+```bash
+# 一次性：把 gradle 发行版放到主仓库的 .server/tools/
+cd ../.server/tools && curl -sSL -o gradle.zip \
+  https://services.gradle.org/distributions/gradle-9.8.2-bin.zip && unzip -q gradle.zip
+
+# 每次构建（必须指定 GRADLE_USER_HOME 到可写目录，否则 native 库初始化失败）
+cd ../../paper-hold-the-fort
+GRADLE_USER_HOME=$PWD/../.server/gradle-home JAVA_HOME=/usr/lib/jvm/java-25-openjdk \
+  ../.server/tools/gradle-9.8.2/bin/gradle --no-daemon -Dorg.gradle.native=false build -x test
+# 产物：build/libs/paper-hold-the-fort-0.1.0.jar
+```
+
+## 重构状态
+
+- 分支 **`restruction`**（与主仓库同名，平行推进）。
+- **R2 坐标解耦**：本仓库的场地配置里仍有 `world` 字段（`Bukkit.getWorld(map.world())`），
+  尚未接 `com.hub.world.Worlds`（`tpl:` 模板作用域）。它目前靠 `HubBridge` 与 HubCore 通信，
+  加 MiniGameLib 依赖前要先确认依赖方向，别破坏它"可独立运行"的设计。
+- **两个 `EventPriority.HIGHEST` 都不是空操作**，别当成历史 workaround 删掉：
+  - `MatchListener#onPvpAllow`：放行不同队伍的互伤（SkyPit 已修成只在自己世界取消，
+    这个放行现在理论上多余，但删掉需要重新验证门牙/高地两队的实际伤害链路）
+  - `MatchListener#onRespawn`：设本队重生点（防止被别的插件覆盖）
