@@ -38,7 +38,10 @@ Minecraft Java 版 **Paper** 服务端插件，实现一个叫「战线模式」
 - **数学层与 Bukkit 解耦**。`frontline/FrontlineGeometry`、`ZoneCounter` 等纯计算模块
   **不得** `import org.bukkit.*`，必须能用纯 JUnit 测试覆盖。
 - 坐标系：Minecraft 右手系，$x$ 东、$z$ 南、$y$ 上；战线相关计算**全部忽略 $y$**。
-- 新增运行期依赖前先想清楚 —— 目前 v1 计划**零运行期依赖**（只用 Paper API）。
+- 依赖：编译期 `compileOnly`（= Maven 的 `provided`）只有 **paper-api + snakeyaml + MiniGameLib**；
+  运行期**硬依赖** MiniGameLib + HubCore（`plugin.yml` 的 `depend`）。
+  公共库的入口就两个类：`com.hub.api.HubAPI`（主城对接）与 `com.hub.world.Worlds`（世界 token）。
+  新增依赖前先想清楚，**不要把 MiniGameLib 打进本插件 jar**（它是全服共用的一个 jar）。
 - 注释用中文，公开 API 写 Javadoc。
 
 ## 5. 设计不变量（实现时最容易写错的地方）
@@ -89,12 +92,50 @@ GRADLE_USER_HOME=$PWD/../.server/gradle-home JAVA_HOME=/usr/lib/jvm/java-25-open
 # 产物：build/libs/paper-hold-the-fort-0.1.0.jar
 ```
 
+**MiniGameLib 依赖从本地 Maven 仓库取，不联网**：
+
+- `build.gradle.kts` 里注册了 `maven { url = uri(file("../.server/m2repo")) }`，里面是
+  `com.hub:minigame-lib:1.7.3`（**先跑过一次主仓库的 `tools/build.sh` 才会有**，
+  那一步会 `MiniGameLib install` 到这个目录）。没有它就会卡在解析
+  `com.hub:minigame-lib:1.7.3` —— 这不是网络问题，先补主仓库构建。
+- 升级公共库（例如 1.7.4）：改 `build.gradle.kts` 里的版本号 → 重跑主仓库
+  `tools/build.sh`（把新版 install 进 `.server/m2repo`）→ 再构建本仓库。
+- `compileOnly` 不会把 `com.hub.*` 打进本插件 jar（验证：`unzip -l` 里 `com/hub` 计数应为 0）。
+
 ## 重构状态
 
 - 分支 **`restruction`**（与主仓库同名，平行推进）。
-- **R2 坐标解耦**：本仓库的场地配置里仍有 `world` 字段（`Bukkit.getWorld(map.world())`），
-  尚未接 `com.hub.world.Worlds`（`tpl:` 模板作用域）。它目前靠 `HubBridge` 与 HubCore 通信，
-  加 MiniGameLib 依赖前要先确认依赖方向，别破坏它"可独立运行"的设计。
+- **依赖方向（主仓库决策 D16）：与其它 23 个小游戏一致。**
+  `build.gradle.kts` 里 `compileOnly("com.hub:minigame-lib:1.7.3")`，
+  `plugin.yml` 里 `depend: [MiniGameLib, HubCore]` + `softdepend: [GameWorlds]`。
+  **本插件不再能单独跑在只有 Paper 的服务器上** —— 一致性优先，这是刻意取舍。
+- **`HubBridge`（反射式兼容层）已退役删除**，换成 MiniGameLib 的直接调用：
+
+  | 原 `HubBridge` | 现在 | 调用点 |
+  | --- | --- | --- |
+  | `setWaiting(player)` | `HubAPI.setGame(uuid, plugin.getName())` | `MatchManager#join` |
+  | `setPlaying(player)` | `HubAPI.setPlaying(uuid, plugin.getName())` | `MatchManager#startMatch` |
+  | `clear(player)` | `HubAPI.clearGame(uuid)` | `MatchManager#leave` / `#clearParticipants` |
+
+  - 它唯一的"兜底"是 **「主城不在就静默跳过」**；这条行为在 `HubAPI` 内部**原样存在**
+    （`service == null` 时全部空操作），所以退役不改任何行为。
+  - `onEnable` 用 `HubAPI.isReady()` 打一行 info / warning，让"主城没就绪"可见（R3）。
+  - 游戏标识**仍然传 `plugin.getName()`**（= `HoldTheFort`）：`HubCore/GameRegistry`
+    按插件名登记，改成别的名字 tab 状态就查不到。
+- **R2 坐标解耦：读取侧已接 `com.hub.world.Worlds`。**
+  - `HoldTheFortPlugin#resolveWorld(token)` 是唯一解析入口（内部是 `Worlds.resolve`）：
+    固定世界名（旧配置，行为不变）与 `tpl:<模板键>` 都认。
+    原来的 `Bukkit.getWorld(map.world())` / `Bukkit.getWorld(config.lobbyWorld())` 全都换成了它。
+  - `HoldTheFortPlugin#isLobbyWorld(map)` 负责"这图是不是开在大厅世界"：
+    固定世界名走**字符串比较**（与改造前逐字一致 —— 世界没加载时也认得出大厅世界，
+    这是当初 `startMatch` 里特意保留的行为）；只有 `tpl:` token 才去解析实际世界名再比。
+  - **写入侧仍写世界名**（`MapWriter` / `SetupSession`），固定世界一个字节都没变。
+    房间世界里 `/htf setup done` 会写房间实例名而不是 `tpl:`：**已知限制**，因为
+    `SetupSession#worldName` 同时被 3 处运行期世界比对使用，换 token 会静默改掉那些比较。
+    HTF 真的房间化时，按 `docs/坐标解耦清单.md` §6.3 让保存走
+    `Worlds.encode(Location)`（磁盘写 `'tpl:模板,x,y,z,yaw,pitch'` 字符串）。
+  - `tpl:` 解析不出来（模板没有存活房间）一律按"场地未就绪"：选图时跳过 +
+    `status` 显示"（世界未加载）"，**绝不退回大厅世界**（与 §9.1「不回退世界」一致）。
 - **两个 `EventPriority.HIGHEST` 都不是空操作**，别当成历史 workaround 删掉：
   - `MatchListener#onPvpAllow`：放行不同队伍的互伤（SkyPit 已修成只在自己世界取消，
     这个放行现在理论上多余，但删掉需要重新验证门牙/高地两队的实际伤害链路）

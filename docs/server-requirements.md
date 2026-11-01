@@ -40,7 +40,9 @@
 
 ## 5. 其它
 
-- 本服已装 HubCore / MiniGameLib / GameWorlds。插件带 `minigame-game: true` 与 `softdepend`，
-  HubCore 会自动登记到 tab/播报；**不要引入运行期依赖**，主城菜单入口由主城配置决定。
+- 本服已装 HubCore / MiniGameLib / GameWorlds。插件带 `minigame-game: true`、
+  `depend: [MiniGameLib, HubCore]` 与 `softdepend: [GameWorlds]`，HubCore 会自动登记到 tab/播报。
+  编译期用 `compileOnly` 依赖 MiniGameLib（`com.hub.api.HubAPI`、`com.hub.world.Worlds`），
+  运行期由服务器 `plugins/` 提供，**不要打进自己的 jar**。主城菜单入口由主城配置决定。
 - 提交前必须 `./gradlew build` 通过（含单元测试）；本服的接入改动会先在
   `work/` 分支上提交并推送，再由插件侧开发者决定合并方式。
