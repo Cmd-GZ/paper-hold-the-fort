@@ -246,15 +246,36 @@ public final class MatchManager {
      * <p>为什么必须有：玩家退出/下线时如果会话不结束，房间会一直占着（实测：两个假玩家退出后
      * `[房间] 1 个在用` 到关服），而房间 = 一份已加载世界。
      */
+    /** 场上还有没有"属于这局"的在线玩家（排队之外，已分队的也算）。 */
+    private boolean anyoneOnlineInMatch() {
+        for (org.bukkit.entity.Player p : org.bukkit.Bukkit.getOnlinePlayers()) {
+            if (queue.contains(p.getUniqueId())) {
+                return true;
+            }
+            if (plugin.teamOf(p) != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void endSessionIfAbandoned() {
         if (session == null) {
             return;
         }
-        if (phase == MatchPhase.RUNNING) {
-            return;   // 对局进行中：交给 MatchManager 自己的结算流程
-        }
-        if (!queue.isEmpty()) {
+        // 还有人在场（排队或已分队）就先不结束
+        if (!queue.isEmpty() || anyoneOnlineInMatch()) {
             return;
+        }
+        // **对局中也必须收**：没人了比赛不该继续挂着（实测：两个玩家退出后 phase 停在 RUNNING，
+        // 会话不结束 -> 房间一直占着）。这里把比赛停掉再结束会话，框架据此销毁房间。
+        if (phase == MatchPhase.RUNNING || phase == MatchPhase.STARTING) {
+            plugin.getLogger().info("[HoldTheFort] 所有人都离开了，本局中止（" + phase + "）");
+            phase = MatchPhase.WAITING;
+            countdown = 0;
+            map = null;
+            chain = null;
+            world = null;
         }
         session.end(EndReason.ABORT);
     }
