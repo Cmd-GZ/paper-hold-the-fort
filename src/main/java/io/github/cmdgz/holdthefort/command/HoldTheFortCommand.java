@@ -90,6 +90,7 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
                 // 框架在 /hub join 时会调它（games.yml 的 join-command 首词 + reload）。
                 plugin.reloadMaps();
                 player.sendMessage("§a地图已重新载入（" + plugin.maps().size() + " 张）。");
+                yield true;
             }
             case "status" -> showStatus(player);
             case "leave" -> plugin.match().leave(player);
