@@ -262,8 +262,6 @@ public final class MatchManager {
     }
 
     private void endSessionIfAbandoned() {
-                + " phase=" + phase + " queue=" + queue.size()
-                + " 在场=" + anyoneOnlineInMatch());
         if (session == null) {
             return;
         }
