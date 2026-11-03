@@ -237,7 +237,9 @@ public final class MatchManager {
     /** 玩家下线：立即移出队列，不造成死锁（§7）。 */
     public void onQuit(Player player) {
         queue.remove(player.getUniqueId());
-        endSessionIfAbandoned();
+        // **下一 tick 再判**：PlayerQuitEvent 期间玩家还在 getOnlinePlayers() 里，
+        // 立刻判会永远认为"还有人"（实测：queue=0 但 在场=true，会话永远不结束）。
+        org.bukkit.Bukkit.getScheduler().runTaskLater(plugin, this::endSessionIfAbandoned, 1L);
     }
 
     /**
@@ -260,6 +262,8 @@ public final class MatchManager {
     }
 
     private void endSessionIfAbandoned() {
+                + " phase=" + phase + " queue=" + queue.size()
+                + " 在场=" + anyoneOnlineInMatch());
         if (session == null) {
             return;
         }
