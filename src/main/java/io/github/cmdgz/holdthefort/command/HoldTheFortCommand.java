@@ -84,6 +84,13 @@ public final class HoldTheFortCommand implements CommandExecutor, TabCompleter {
             case "join" -> joinTeam(player, args);
             case "setup" -> handleSetup(player, args);
             case "map" -> handleMap(player, args);
+            case "reload" -> {
+                // 房间化（R1.5）：地图文件里写的是 `tpl:<模板键>`，只有**房间存在**时才解析得出来，
+                // 而插件在 onEnable 时还没有房间 -> 会缓存成"世界未加载"。
+                // 框架在 /hub join 时会调它（games.yml 的 join-command 首词 + reload）。
+                plugin.reloadMaps();
+                player.sendMessage("§a地图已重新载入（" + plugin.maps().size() + " 张）。");
+            }
             case "status" -> showStatus(player);
             case "leave" -> plugin.match().leave(player);
             case "red" -> setTeam(player, Team.RED);
