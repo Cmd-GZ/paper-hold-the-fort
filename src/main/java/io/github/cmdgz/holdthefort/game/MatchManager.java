@@ -29,6 +29,7 @@ import org.bukkit.scoreboard.Objective;
 import org.bukkit.scoreboard.Scoreboard;
 
 import com.hub.api.HubAPI;
+import com.hub.session.EndReason;
 import com.hub.world.Worlds;
 
 import io.github.cmdgz.holdthefort.HoldTheFortPlugin;
@@ -47,6 +48,18 @@ import io.github.cmdgz.holdthefort.world.ArenaWorldConfig;
  * <p>每 tick 由插件调度一次；所有状态转换都写在这里，便于对照文档检查。
  */
 public final class MatchManager {
+
+    /** 框架会话（房间化接入口）：懒创建，收场后置空。 */
+    private HoldTheFortSession session;
+
+    /** 取当前会话（没有就建一个并进入等待态）。 */
+    private HoldTheFortSession session() {
+        if (session == null) {
+            session = new HoldTheFortSession(this);
+            session.markWaiting();
+        }
+        return session;
+    }
 
     /** 倒计时 10 秒。 */
     private static final int COUNTDOWN_TICKS = 200;
@@ -180,11 +193,28 @@ public final class MatchManager {
         // 主城（HubCore）通过 HubAPI 决定玩家算不算"在大厅"：
         // isInLobby(uuid) == gameMap.get(id) == null。不登记的话玩家一重生就会被拉回主城。
         HubAPI.setGame(player.getUniqueId(), plugin.getName());
+        // 框架会话（I1 归属链）：挂不上说明玩家已在别的对局里，按框架规则拒绝本次加入。
+        if (!session().join(player)) {
+            queue.remove(player.getUniqueId());
+            HubAPI.clearGame(player.getUniqueId());
+            player.sendMessage("加入失败：你可能已经在另一局游戏里了（请先退出）。");
+            return false;
+        }
         player.sendMessage(team == null
                 ? "已加入等待，开局时自动分到人少的一队"
                 : "已加入" + teamName(team) + "，当前 " + countTeam(team)
                         + "/" + plugin.config().teamLimit() + " 人");
         return true;
+    }
+
+    /**
+     * 会话结束回调（由 {@link HoldTheFortSession#onEnd} 调用）。
+     *
+     * <p>框架已经摘完归属链、按 D25 销毁了房间；这里只收尾自己的状态，并把会话置空，
+     * 下一场重新建。
+     */
+    void onSessionEnded(EndReason reason) {
+        session = null;
     }
 
     /** 退出报名。 */
@@ -196,6 +226,10 @@ public final class MatchManager {
         queue.remove(player.getUniqueId());
         plugin.forget(player);
         HubAPI.clearGame(player.getUniqueId());
+        if (session != null) {
+            session.leave(player);
+        }
+        endSessionIfAbandoned();
         player.sendMessage("已退出等待");
         return true;
     }
@@ -203,6 +237,26 @@ public final class MatchManager {
     /** 玩家下线：立即移出队列，不造成死锁（§7）。 */
     public void onQuit(Player player) {
         queue.remove(player.getUniqueId());
+        endSessionIfAbandoned();
+    }
+
+    /**
+     * 没人了就结束会话（框架据此销毁房间，D25）。
+     *
+     * <p>为什么必须有：玩家退出/下线时如果会话不结束，房间会一直占着（实测：两个假玩家退出后
+     * `[房间] 1 个在用` 到关服），而房间 = 一份已加载世界。
+     */
+    private void endSessionIfAbandoned() {
+        if (session == null) {
+            return;
+        }
+        if (phase == MatchPhase.RUNNING) {
+            return;   // 对局进行中：交给 MatchManager 自己的结算流程
+        }
+        if (!queue.isEmpty()) {
+            return;
+        }
+        session.end(EndReason.ABORT);
     }
 
     // ---------------------------------------------------------------- tick
